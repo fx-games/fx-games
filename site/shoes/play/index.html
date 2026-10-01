@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shoes · Play</title>
+<!-- Parchment for Inform 7 (github.com/curiousdannii/parchment); story wrapped like cBlorb's release -->
+<link rel="stylesheet" href="interpreter/parchment.css">
+<script src="interpreter/jquery.min.js"></script>
+<script src="interpreter/ie.js" nomodule></script>
+<script src="interpreter/parchment.js"></script>
+<script>
+window.parchment_options = {
+  dialog_localStorage_id: 'shoes',
+  jsonp: 'ParchmentResource',
+  lib_path: 'interpreter/',
+  story: { filename: 'shoes.ulx', title: 'Shoes', url: 'shoes.ulx.js' },
+}
+</script>
+<style>html,body{height:100%;margin:0}#gameport{position:absolute;inset:0}#back{position:fixed;top:6px;right:12px;z-index:10;font:13px monospace;color:#888}</style>
+</head>
+<body>
+<a id="back" href="../">← back</a>
+<div id="gameport">
+<div id="windowport"><noscript><p>You'll need JavaScript to play this game.</p></noscript></div>
+<div id="loadingpane"><img src="interpreter/waiting.gif" alt="LOADING"><br><em>Loading...</em></div>
+<div id="errorpane" style="display:none;"><div id="errorcontent">...</div></div>
+</div>
+</body>
+</html>
