@@ -17,7 +17,7 @@
 <a id="back" href="../">← back</a>
 <canvas id="canvas"></canvas>
 <div id="hint">Loading…</div>
-<script src="../../progress.js" data-size="45318034"></script>
+<script src="../../progress.js" data-size="45319411"></script>
 <script src="wasm_exec.js"></script>
 <script>
   // os on js/wasm reads files through Node's fs API. This is its read-only half,
@@ -75,10 +75,16 @@
       globalThis.__goMem = r.instance.exports.mem; // gl_js.go views Go memory through this
       hint.innerHTML = "Click to start<small>WASD move · mouse look · click shoot · F use · 1-9 weapons · Space jump · Esc releases the mouse</small>";
       hint.onclick = () => {
-        hint.remove();
+        hint.onclick = null;
+        hint.textContent = "Building station…";
+        globalThis.__firstFrame = () => hint.remove(); // called by Go after its first frame
         const p = canvas.requestPointerLock();
         if (p && p.catch) p.catch(() => {});
-        go.run(r.instance);
+        // Loading blocks the page, so let the message paint first.
+        requestAnimationFrame(() => setTimeout(() => runGo(r.instance), 0));
+      };
+      const runGo = inst => {
+        go.run(inst);
         // oto (the audio backend) waits for a touchend/keyup/mouseup after it starts
         // before resuming its AudioContext. This click already counts as the user
         // gesture, so nudge it with synthetic ones until it has had its chance.
