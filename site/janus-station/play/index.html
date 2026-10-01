@@ -17,7 +17,7 @@
 <a id="back" href="../">← back</a>
 <canvas id="canvas"></canvas>
 <div id="hint">Loading…</div>
-<script src="../../progress.js" data-size="45241871"></script>
+<script src="../../progress.js" data-size="45318034"></script>
 <script src="wasm_exec.js"></script>
 <script>
   // os on js/wasm reads files through Node's fs API. This is its read-only half,
@@ -49,7 +49,7 @@
     open(p, flags, mode, cb) {
       p = norm(p);
       if (flags & ~0x10000) return cb(err("EROFS"));
-      if (!statOf(p)) { (globalThis.__miss ||= new Set()).add(p); return cb(err("ENOENT")); } (globalThis.__opened ||= new Set()).add(p); // TEMPLOG
+      if (!statOf(p)) return cb(err("ENOENT"));
       fds.set(++nextFd, { p, pos: 0 }); cb(null, nextFd);
     },
     close(fd, cb) { fds.delete(fd); cb(null); },
@@ -59,7 +59,6 @@
     readdir(p, cb) { const d = dirs.get(norm(p)); d ? cb(null, d.slice()) : cb(err("ENOENT")); },
     read(fd, buf, off, len, pos, cb) {
       const f = fds.get(fd), file = f && files.get(f.p);
-      if (file && file[0] < 0) (globalThis.__stubread ||= new Set()).add(f.p); // TEMPLOG
       if (!file || file[0] < 0) return cb(err(f ? (file ? "EIO" : "EISDIR") : "EBADF")); // stubs have no bytes
       const at = pos ?? f.pos, n = Math.max(0, Math.min(len, file[1] - at));
       buf.set(new Uint8Array(__goMem.buffer, file[0] + at, n), off);
