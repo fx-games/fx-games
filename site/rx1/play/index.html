@@ -101,10 +101,22 @@
   globalThis.fs = ops;
 })();
 </script>
-<script src="../../progress.js" data-size="8555825"></script>
+<script src="../../progress.js" data-size="8571098"></script>
 <script src="wasm_exec.js"></script>
 <script>var onKeyEvent, onMouseClick, onMouseMove, onFocus, onPaste; onKeyEvent = onMouseClick = onMouseMove = onFocus = onPaste = () => {}; // replaced by Go once running</script>
 <script src="tcell.js"></script>
+<script>
+// tcell.js forwards keys but never stops the browser's own action: F1 opened browser help, F5 reloaded, Tab moved focus.
+// Swallow those defaults (the game still gets the key). Ctrl+T etc. are reserved by browsers and can't be caught.
+addEventListener("keydown", e => { if (/^F\d+$/.test(e.key) || e.key === "Tab" || e.key === "/") e.preventDefault() }, true)
+// Right click (monster stats & lore) never reached the game: browsers fire contextmenu, not click, for button 3.
+term.addEventListener("contextmenu", e => {
+  e.preventDefault()
+  const x = Math.min((e.offsetX / fontwidth) | 0, width-1), y = Math.min((e.offsetY / fontheight) | 0, height-1)
+  onMouseClick(x, y, 3, e.shiftKey, e.altKey, e.ctrlKey)
+  onMouseClick(x, y, 0, e.shiftKey, e.altKey, e.ctrlKey) // release, so the next right click registers without moving the mouse
+})
+</script>
 <script>
 // Block glyphs (U+2588 full, U+2580 upper half, U+2584 lower half) from the font never fill the line box exactly,
 // so walls get stripes. Paint them as cell backgrounds instead. tcell looks drawCell up globally on every call.
