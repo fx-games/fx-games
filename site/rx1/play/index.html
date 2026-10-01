@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rx1 · Play</title>
+<link rel="stylesheet" href="termstyle.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px monospace; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  #terminal { font-size: clamp(10px, min(2vw, 3.6vh), 22px); line-height: 1.2; color: #ccc; }
+  #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; font-family: monospace; }
+  #back:hover { color: #fff; }
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-family: monospace; }
+  #hint { position: fixed; bottom: 8px; width: 100%; text-align: center; color: #666; font-family: monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<a id="back" href="../">← back</a>
+<pre id="terminal"></pre>
+<div id="loading">Loading…</div>
+<div id="hint">Click the page if keys don't respond · arrows/numpad/wasd move · i inventory · = key bindings</div>
+<script>
+// Minimal in-memory filesystem for Go's syscall/js (Go embeds data_rx1 and fills it via __fsPut; saves live in memory).
+(() => {
+  const files = new Map(), dirs = new Set(["/"]), fds = new Map();
+  let nextFd = 100, out = "";
+  const norm = p => "/" + p.split("/").reduce((a, s) => (s === "..") ? a.slice(0, -1) : (s && s !== ".") ? [...a, s] : a, []).join("/");
+  const addDirs = p => { for (let d = p; d !== "/"; ) { d = d.slice(0, d.lastIndexOf("/")) || "/"; dirs.add(d); } };
+  const err = c => Object.assign(new Error(c), { code: c });
+  const st = p => {
+    const isDir = dirs.has(p), f = files.get(p);
+    if (!isDir && !f) return null;
+    return { dev: 0, ino: 0, mode: isDir ? 0o40755 : 0o100644, nlink: 1, uid: 0, gid: 0, rdev: 0,
+      size: f ? f.length : 0, blksize: 4096, blocks: 0, atimeMs: 0, mtimeMs: 0, ctimeMs: 0, isDirectory: () => isDir };
+  };
+  globalThis.__fsPut = (p, data) => { p = norm(p); files.set(p, data); addDirs(p); };
+  globalThis.path = { resolve: (...a) => norm(a.join("/")) };
+  globalThis.process = { pid: 1, ppid: 0, cwd: () => "/", chdir() {}, umask: () => 0o22,
+    getuid: () => -1, getgid: () => -1, geteuid: () => -1, getegid: () => -1, getgroups() { throw err("ENOSYS"); } };
+  const C = { O_WRONLY: 1, O_RDWR: 2, O_CREAT: 64, O_TRUNC: 512, O_APPEND: 1024, O_EXCL: 128, O_DIRECTORY: -1 };
+  const write = (fd, buf, off, len, pos) => {
+    if (fd === 1 || fd === 2) {
+      out += new TextDecoder().decode(buf.subarray(off, off + len));
+      const nl = out.lastIndexOf("\n");
+      if (nl !== -1) { console.log(out.slice(0, nl)); out = out.slice(nl + 1); }
+      return len;
+    }
+    const h = fds.get(fd); if (!h) throw err("EBADF");
+    const at = pos ?? h.pos, old = files.get(h.p), end = Math.max(old.length, at + len);
+    const nb = new Uint8Array(end); nb.set(old); nb.set(buf.subarray(off, off + len), at);
+    files.set(h.p, nb); if (pos == null) h.pos = at + len;
+    return len;
+  };
+  const ops = {
+    constants: C,
+    writeSync: (fd, buf) => write(fd, buf, 0, buf.length, null),
+    write(fd, buf, off, len, pos, cb) { try { cb(null, write(fd, buf, off, len, pos)); } catch (e) { cb(e); } },
+    open(p, flags, mode, cb) {
+      p = norm(p);
+      if (!st(p)) {
+        if (!(flags & C.O_CREAT)) return cb(err("ENOENT"));
+        if (!dirs.has(p.slice(0, p.lastIndexOf("/")) || "/")) return cb(err("ENOENT"));
+        files.set(p, new Uint8Array(0));
+      } else if (flags & C.O_TRUNC && files.has(p)) files.set(p, new Uint8Array(0));
+      const fd = nextFd++;
+      fds.set(fd, { p, pos: (flags & C.O_APPEND) ? files.get(p)?.length ?? 0 : 0 });
+      cb(null, fd);
+    },
+    close(fd, cb) { fds.delete(fd); cb(null); },
+    read(fd, buf, off, len, pos, cb) {
+      const h = fds.get(fd), f = h && files.get(h.p); if (!f) return cb(err("EBADF"));
+      const at = pos ?? h.pos, n = Math.max(0, Math.min(len, f.length - at));
+      buf.set(f.subarray(at, at + n), off); if (pos == null) h.pos = at + n;
+      cb(null, n);
+    },
+    fstat(fd, cb) { const h = fds.get(fd); h ? cb(null, st(h.p)) : cb(err("EBADF")); },
+    stat(p, cb) { const s = st(norm(p)); s ? cb(null, s) : cb(err("ENOENT")); },
+    lstat(p, cb) { ops.stat(p, cb); },
+    readdir(p, cb) {
+      p = norm(p); if (!dirs.has(p)) return cb(err("ENOENT"));
+      const pre = p === "/" ? "/" : p + "/", names = new Set();
+      for (const k of [...files.keys(), ...dirs]) if (k.startsWith(pre) && k !== p) names.add(k.slice(pre.length).split("/")[0]);
+      cb(null, [...names]);
+    },
+    mkdir(p, perm, cb) { p = norm(p); if (st(p)) return cb(err("EEXIST")); dirs.add(p); addDirs(p); cb(null); },
+    unlink(p, cb) { files.delete(norm(p)) ? cb(null) : cb(err("ENOENT")); },
+    rmdir(p, cb) { dirs.delete(norm(p)) ? cb(null) : cb(err("ENOENT")); },
+    rename(a, b, cb) { a = norm(a); b = norm(b); if (!files.has(a)) return cb(err("ENOENT")); files.set(b, files.get(a)); files.delete(a); addDirs(b); cb(null); },
+    ftruncate(fd, len, cb) { const h = fds.get(fd); if (!h) return cb(err("EBADF")); files.set(h.p, files.get(h.p).slice(0, len)); cb(null); },
+    truncate(p, len, cb) { p = norm(p); if (!files.has(p)) return cb(err("ENOENT")); files.set(p, files.get(p).slice(0, len)); cb(null); },
+    fsync(fd, cb) { cb(null); },
+    utimes(p, a, m, cb) { cb(null); }, chmod(p, m, cb) { cb(null); }, fchmod(fd, m, cb) { cb(null); },
+    chown(p, u, g, cb) { cb(null); }, fchown(fd, u, g, cb) { cb(null); }, lchown(p, u, g, cb) { cb(null); },
+    link(a, b, cb) { cb(err("ENOSYS")); }, symlink(a, b, cb) { cb(err("ENOSYS")); }, readlink(p, cb) { cb(err("EINVAL")); },
+  };
+  globalThis.fs = ops;
+})();
+</script>
+<script src="../../progress.js" data-size="8555825"></script>
+<script src="wasm_exec.js"></script>
+<script>var onKeyEvent, onMouseClick, onMouseMove, onFocus, onPaste; onKeyEvent = onMouseClick = onMouseMove = onFocus = onPaste = () => {}; // replaced by Go once running</script>
+<script src="tcell.js"></script>
+<script>
+  const go = new Go();
+  WebAssembly.instantiateStreaming(progressFetch("rx1.wasm"), go.importObject)
+    .then(r => { document.getElementById("loading").remove(); go.run(r.instance); })
+    .catch(e => { document.getElementById("loading").textContent = "Failed to load: " + e; console.error(e); });
+</script>
+</body>
+</html>
