@@ -8,7 +8,9 @@
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px monospace; overflow: hidden; }
   body { display: flex; align-items: center; justify-content: center; }
-  #terminal { font-size: clamp(10px, min(2vw, 3.6vh), 22px); line-height: 1.2; color: #ccc; }
+  #terminal { font-size: clamp(10px, min(2vw, 3.6vh), 22px); line-height: 1; color: #ccc; }
+  /* cells are fractional px wide: bleed each background a hair into the next cell (and row) so no seams show; negative margin keeps the layout */
+  #terminal span { padding: 0.08em 0.06em 0.08em 0; margin-right: -0.06em; }
   #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; font-family: monospace; }
   #back:hover { color: #fff; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-family: monospace; }
