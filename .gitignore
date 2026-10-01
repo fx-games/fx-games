@@ -1,0 +1,6 @@
+.DS_Store
+.claude/
+# build outputs of each game's build_web.sh
+*.wasm
+*.wasm.gz
+wasm_exec.js
