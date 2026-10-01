@@ -1,10 +1,39 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>BattleTrail · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>BattleTrail</h1><p class="meta">Started November 2017 · Kotlin + JavaFX, ported to Go + Tk in 2026</p>
+<p class="done">Completion <span>▰▰▰▰▰▱▱▱▱▱</span> 50% · Full loop, but only one event</p>
 <div class="btns"><a class="btn play" href="play/">▶ Play in browser</a></div>
 <p>BattleTrail is my Battlestar Galactica fan game, a mix of Oregon Trail and real-time fleet tactics. The Colonies have fallen, and you command the last Battlestar with a ragtag fleet of civilian ships. Your job is to find them a new home before the Cylons wipe you out. I started it in 2017 in Kotlin with a JavaFX front end, using a domain-driven, component-based design. That's mostly where I worked out how to structure a simulation.</p>
 <p>You play by typing commands into a little console: <b>scan</b> a galaxy for habitable planets, <b>jump X,Y</b> to make an FTL jump, <b>launch</b> and <b>recall</b> Viper squadrons, and finally <b>settle</b>. On the DRADIS screen you click your ship, then click space to move it or a Basestar to attack. Every jump costs energy, Cylon Basestars sweep the galaxies looking for you, and every so often you get an Oregon-Trail-style decision with real consequences. The ship's computer even reads its lines aloud in a robot voice.</p>
 <p>In 2026 I dusted it off and ported it to Go with Tk. It now has a tested, UI-independent game package, and lots of old bugs are fixed: win/lose conditions, fleets following FTL jumps, energy and shields. The same game package also runs in the browser via WebAssembly, with a DOM front end in place of Tk.</p>
+<h2>Features</h2>
+<ul><li>An 11×11 grid of galaxies, each an 11×11 grid of solar systems, generated from a fixed seed, with star classes and 15 planet compositions.</li><li>Typed command console: <code>scan</code>, <code>jump X,Y</code>, <code>launch</code>, <code>recall</code>, <code>settle</code>, <code>help</code>.</li><li>Real-time DRADIS screen: click a ship, click space to move, click a Basestar to attack.</li><li>FTL jumps that cost energy, strain the hull and take every Colonial ship in the system along.</li><li>Viper squadrons that launch over time and fly back to land in the hangar.</li><li>10 Cylon Basestars that sweep random systems hunting for the fleet.</li><li>Shields, hull, energy regen, and hull repairs only while no enemy is around.</li><li>The opening Raptor choice: save the diplomat, the general or the scientist.</li><li>Win by settling a habitable planet; lose the Battlestar or the last civilian ship and it's over.</li><li>The ship's computer reads its lines aloud in a robot voice.</li></ul>
+<h2>Under the hood</h2>
+<p class="meta">≈ 3,260 lines of Kotlin · 1,715 lines of Go (incl. 155 of tests) · 19 commits</p>
+<p>The Go port keeps notes on where the Kotlin original was wrong. From <code>go/game/world.go</code>:</p>
+<pre><code>s, c := math.Sincos(deg * math.Pi / 180) // the Kotlin version fed degrees into sin/cos</code></pre>
+<p>And the planet generator in <code>BattleTrail/src/game/entities/Planet.kt</code> rolled <code>random.nextInt(14)</code> over 15 compositions, so Terrestrial, the one you want, could never appear. The Go test says so (<code>go/game/game_test.go</code>):</p>
+<pre><code>for _, want := range []string{"M", "Terrestrial"} { // unreachable in the Kotlin version</code></pre>
+<p>The Cylon AI in <code>go/game/game.go</code> is a shuffled checklist: each sweep a Basestar pops a random unsearched system and only jumps there if it finds Colonial ships.</p>
+<pre><code>i := g.r.Intn(len(g.toSearch))
+sys := g.toSearch[i]
+g.toSearch = append(g.toSearch[:i], g.toSearch[i+1:]...)
+if g.count(sys.Loc, Colonies) &gt; 0 {
+	b.Energy -= 100
+	b.Loc, b.P, b.Target = sys.Loc, g.randVec(), nil</code></pre>
+<p>The 2017 voice was MaryTTS with a robot filter (<code>GameTTS.kt</code>, <code>val effects = "Robot(Amount=50)"</code>). The Go port just shells out to macOS (<code>go/speech.go</code>):</p>
+<pre><code>voice = exec.Command("say", "-v", "Zarvox", text) // robotic, like the old MaryTTS effect</code></pre>
+<p>And a Tk war story from <code>go/main.go</code>:</p>
+<pre><code>// dialog is a plain Tk window instead of tk_messageBox: the native macOS alert
+// runs a nested event loop that the game ticker re-entered, crashing the app.</code></pre>
+<h2>Ideas &amp; inspirations</h2>
+<p>Battlestar Galactica (the 2003 series) is everywhere: Basestars, Raiders, Vipers, Raptors, DRADIS, Caprica. The DRADIS icons are fan-made Photoshop files by David Gian-Cursio, whose read-me in <code>BattleTrailUI/RawResources</code> recommends the "Visitor" font as close to the show's. The Oregon Trail part shows in <code>ChoiceEvents.kt</code>: the lone Raptor on Caprica with room for one more person. The Kotlin code also has an unused <code>PartyMember</code> enum (Diplomat, General, Scientist) and a commented-out <code>addPartyMember</code>, so a party/crew system with levels was planned. There are no other notes or TODO files.</p>
+<h2>Where it started, where it ended</h2>
+<p>The first commit was 8 November 2017; within a day there was realtime movement on DRADIS and text-to-speech, then the first choice event, "first steps towards rts battles", a "ddd plus component based architecture" rewrite, solar system navigation and finally "basic combat" on 19 November 2017. Then nothing for nine years. In September 2026 I ported it to Go with Tk, fixed win/lose, fleet following, shields and world-gen bugs, and added a WebAssembly browser front end. The idea stayed the same; the 2026 version is just the first one you can actually finish.</p>
+<h2>State of the repo</h2>
+<p>Last activity is 1 October 2026 (the wasm front end and a publish script). The Go tests pass. The Kotlin version is still in the repo and has a <code>run.sh</code>, but it's frozen. What's missing is most of the Oregon Trail half: there is exactly one choice event, at the start, and no resources besides energy, no crew, no random events on the trail. Raiders and boarding exist as Kotlin classes but not in the Go game. I'd put it at about half of what I had in mind.</p>
+<h2>Is it a real game?</h2>
+<p><b>Playable demo.</b> There is a full loop with a win state (settle a habitable planet away from home without Cylons present) and two lose states (Battlestar destroyed, all civilians gone). One run is a matter of scanning, jumping and a few fights; after the opening choice nothing new happens, so it runs out of surprises quickly.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"><img src="img/shot3.png" alt="" onerror="this.remove()"></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2026-09-30</b> Port game to Go with Tk and fix gameplay bugs</li><li><b>2017-11-19</b> Basic combat</li><li><b>2017-11-18</b> Hardcore ;)</li><li><b>2017-11-18</b> Enabled solar system navigation</li><li><b>2017-11-16</b> More refactoring</li><li><b>2017-11-15</b> DDD plus component-based architecture</li></ul>
 </main></body></html>

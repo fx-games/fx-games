@@ -1,9 +1,32 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Die Drei Roboter · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>Die Drei Roboter</h1><p class="meta">Twine 2 · Harlowe · interactive fiction (German)</p>
+<p class="done">Completion <span>▰▰▰▰▰▰▰▰▰▱</span> 90% · finished story, a few typos left</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a></div>
 <p>A ten-minute detective story, in German, that I wrote in Twine. A night call, another murder: Alexander Reed lies dead at the foot of the attic stairs, and the only witnesses in the house are his three androids, James the butler, Samira the maid and Edgar the gardener.</p>
 <p>You explore the house, read through the papers on the desk, and question the robots by typing keywords. Every android has its own answers, and some of them won't talk until you find a way to make them. When you think you've figured it out, you take the case to the machine court.</p>
 <p>It's a small piece about loneliness and what makes a mind, and it plays in a few minutes.</p>
+<h2>Features</h2><ul><li>47 passages: a house with hallway, living room, study, kitchen, attic, garden and a locked garden shed.</li><li>Keyword interrogation: you type a word into a prompt and each android answers (or refuses) on its own terms.</li><li>Three robots, three states: James talks, Samira holds back, Edgar is muted until you fix him.</li><li>A small item chain: shed key from James, a password-locked toolbox, a factory-reset tool.</li><li>Two ways to use the tool on Edgar: reset him so he talks, or wipe him and lose his memory.</li><li>A desk full of documents, including a pile you have to dig through three times to find the will.</li><li>The machine court: four questions (who, why, which android cooperated, who made the call), wrong answers send you back to investigate.</li><li>A title screen, a passage-name header and a green link colour scheme in the story stylesheet.</li></ul>
+<h2>Under the hood</h2><p class="meta">47 passages · ≈ 2,400 words including Harlowe markup · Twine 2.3.5 · Harlowe 3.1.0</p>
+<p>All state lives in six variables set in the first passage, "Am Anfang":</p><pre><code>(set: $jamesAtCrimeScene to true)
+(set: $hasGardenShedKey to false)
+(set: $hasFactoryResetTool to false)
+(set: $stateOfEdgar to "muted")
+(set: $stateOfSamira to "awake")
+(set: $stateOfJames to "awake")</code></pre><p><code>$stateOfSamira</code> and <code>$stateOfJames</code> are set and never read again. I clearly planned to let you reset the other two as well.</p>
+<p>The interrogations are one long if/else-if chain on a lowercased prompt. Samira's chain checks "edgar" twice; the second branch can never fire (passage "Samira befragen"):</p><pre><code>(if: (lowercase: $keyword) is "james")[Er erledigt die Botengänge ...]
+(else-if: (lowercase: $keyword) is "edgar")[Sein Refugium ist der Garten. ...]
+...
+(else-if: (lowercase: $keyword) is "edgar")[Sein Refugium ist der Garten. ...]</code></pre>
+<p>Edgar's garden passage switches the interrogation link on his state, and the reset tool unlocks two more links:</p><pre><code>{(if: $stateOfEdgar is "muted")[[[Befragung beginnen-&gt;Edgar's Systeme sind fehlerhaft]].]
+(else-if: $stateOfEdgar is "reset")[[[Befragung beginnen-&gt;Edgar befragen]].]
+(else-if: $stateOfEdgar is "wiped")[[[Befragung beginnen-&gt;Edgar's Erinnerung ist gelöscht]].]}</code></pre>
+<p>The court reuses the failure passage with <code>(display:)</code> instead of linking to it (passage "Maschinengericht"):</p><pre><code>(if: (lowercase: $answer) is "alex")[ ... [[Weiter-&gt;Maschinengericht Part 2]] ]
+(else:)(display: "Weiter ermitteln")</code></pre>
+<p>The toolbox password is a riddle: a handwritten note on the desk says "Passwort Hilfe: Meine ewige Liebe", and the answer is <code>samira</code>, not the ex-wife Jennifer.</p>
+<h2>Ideas &amp; inspirations</h2><p>The title screen calls it "Ein 10-Minuten Krimi". The story itself is the inspiration list: a near future where flying is no longer allowed ("aus der Zeit als Fliegen erlaubt war"), androids are everywhere, and the detective dislikes them ("Haben keine Gefühle, diese Dinger."). The twist is a classic one: the victim is also the culprit, having transferred his mind into the butler android, while the maid became conscious and his partner. The will that leaves a house and freedom to the three robots is the motive's paper trail. The unused <code>$stateOfSamira</code>/<code>$stateOfJames</code> variables hint that resetting or wiping the other androids was planned too.</p>
+<h2>Where it started, where it ended</h2><p>There is no history in the file beyond the story format versions (Twine 2.3.5, Harlowe 3.1.0), so I can only describe what is there. The idea was a short murder mystery where your witnesses are machines and you question them by keyword instead of from a menu. It ended as exactly that: a complete case with a solution report and a thank-you screen.</p>
+<h2>State of the repo</h2><p>It's a single exported Twine HTML file, not a repo. The story is finished: every path leads somewhere and the court has a proper ending. What's left is polish: German typos ("Werkzustands", "Schüssel", "stimt", "offensichtlicht", "Input/Ouput"), the duplicated "edgar" branch, two state variables that are never used, and the reset/wipe links on Edgar stay visible after you've already used one. Keyword matching is exact, so "Alexander" works for Samira but not for Edgar. About 90% of what it set out to be.</p>
+<h2>Is it a real game?</h2><p><b>Complete.</b> It has a full loop: explore, collect clues, unlock Edgar, solve the case in court, get the ending. There's no way to lose; wrong answers in court just send you back to the crime scene. It's ten to fifteen minutes long, most of it spent guessing the right keywords, and once you know the solution there's no reason to replay.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"></div>
 </main></body></html>

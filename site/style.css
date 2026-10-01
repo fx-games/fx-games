@@ -30,3 +30,4 @@ h2.sec{margin:56px 0 20px;font-size:14px;color:var(--b);text-shadow:none}
 .card{display:flex;flex-direction:column}
 .card>div{flex:1;display:flex;flex-direction:column}
 .card .btns{margin-top:auto;padding-top:16px}
+.done{font-family:'IBM Plex Mono',monospace;font-size:.9em;color:#aaa}.done span{color:#ffb000;letter-spacing:1px}

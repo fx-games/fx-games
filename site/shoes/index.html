@@ -1,10 +1,41 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Shoes · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>Shoes</h1><p class="meta">2021 · Inform 7 (Glulx) · interactive fiction</p>
+<p class="done">Completion <span>▰▰▰▰▱▱▱▱▱▱</span> 40% · one case, plays through, unfinished investigation</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a></div>
 <p>Shoes is a parser game I wrote with IFComp 2021 in mind, though it never got entered. I wrote it in Inform 7 over a couple of busy weeks at the end of August and early September 2021, including a small Simple Liquids extension so you could pour, poison and analyse drinks.</p>
 <p>You are a holographic detective, booted up in a virtual "genesis room" whenever there's a case to solve. This time the victim is Victorio, poisoned in his own kitchen. You poke around with your Sergeant, have him analyse the wine bottle and check the drawers and cheques. Then you switch to the murderer's flat and walk in the killer's shoes, recreating the crime step by step.</p>
 <p>The fun part for me was letting the murder happen in more than one way: a poisoned bottle opener, a syringe, or something much less subtle with that opener. It never became a polished release, but the core loop of investigating and then re-enacting works.</p>
+<h2>Features</h2>
+<ul><li>Two-part structure: investigate the crime scene as a hologram inspector, then <code>change location</code> into the murderer and re-enact the crime.</li><li>The narration switches from first person present to third person past tense when you become the murderer.</li><li>Lab analysis: ask the Sergeant to <code>analyse</code> something and the report shows up in your notebook a few turns later.</li><li>Interrogation by topic or by showing things, using per-character reply tables (only Mario has them filled in).</li><li>Poison system with a 4-turn timer, plus stabbing and striking actions driven by a weapon category on every kitchen object.</li><li>Three ways to kill Victorio: a poisoned bottle opener swapped onto the table, a syringe straight into him, or stabbing him with the opener.</li><li>A timed dinner scene: Albert leaves, Mario fetches the wine, Victorio opens and drinks it.</li><li>Bystanders flee in panic after any criminal act.</li><li>My own Simple Liquids extension for wine bottles, glasses, volumes and pouring.</li><li>End screen with exploration, investigation and re-creation scores.</li></ul>
+<h2>Under the hood</h2>
+<p class="meta">≈ 1,100 lines of Inform 7 (story) · 108 lines of my own extension (plus Gavin Lambert's Exit Lister) · 7 commits</p>
+<p>The hologram can only see in the dark what it carries itself, a visibility rule in <code>murder.inform/Source/story.ni</code>:</p>
+<pre><code>Visibility rule when in darkness: 
+	if examining something (called the item):
+		if the player encloses the item or the item is the player:
+			[say "Light is provided by your own illumination.";]
+			there is sufficient light;</code></pre>
+<p>Becoming the murderer flips the whole grammar of the story, same file:</p>
+<pre><code>To start the recreation:
+	Now has recreation begun is true;
+	make the player the murderer;
+	now the story viewpoint is third person singular; 
+	now the story tense is past tense;</code></pre>
+<p>Typing <code>kill</code> gets you told off, because this is a whodunnit with standards:</p>
+<pre><code>say "This is a murder mystery. Please, be more specific on how you want to kill your target.[line break][line break]Think about stabbing, striking, choking and shooting.".</code></pre>
+<p>Choking and shooting were never implemented. And in <code>Extensions/Felix Ruzzoli/Simple Liquids.i7x</code> a volume is a proper Inform unit, which is why the wine bottle holds exactly <code>25.4 fl oz</code>:</p>
+<pre><code>A volume is a kind of value. 15.9 fl oz specifies a volume with parts ounces and tenths (optional, preamble optional).</code></pre>
+<p>The inspector also gets a cigar, and lighting it is worth a point: "You can feel how you think faster now."</p>
+<h2>Ideas &amp; inspirations</h2>
+<p>The intro says it outright: the inspector's looks are "based on 80s crime TV series detectives", with a beige film-noir trench coat, and the end message is "Just one more thing...", which is Columbo. The "walk in the killer's shoes" re-enactment is where the title comes from.</p>
+<p>The only planning is a comment block in <code>story.ni</code> under "Part 3 - Notes", half in German, headed <code>[HINTS NEEDED:]</code>: the facts the player should piece together, like "Poisoned the bottle opener", "Used fugu poison", "Made Mario go for the wine" and "Left before the wine was opened". There was also a <code>notes.rtf</code> in the project, but it is empty.</p>
+<h2>Where it started, where it ended</h2>
+<p>The first commit on 2021-08-28 already had the Inform project; the second one, "Do we need all this?", was just me adding a <code>.gitignore</code> for Inform's build clutter. The leftover information objects show an earlier idea: a death report about "a Mr. Henry LaVille" at "the famous hotel LaVille". That case got replaced by Victorio's restaurant kitchen, but the old reports are still in the source. Over the next days came the better bottle opener, all the poison killings, then stabbing and an ending on 2021-08-30, and one last "Much better" on 2021-09-07.</p>
+<h2>State of the repo</h2>
+<p>Last real commit is 2021-09-07, and it compiles: Inform reports a 7,345-word source with 6 rooms and 72 things. The test scripts (<code>test completion</code>, <code>test alt_poison_1</code>, <code>test alt_stabbing_1</code>) walk through each solution. Half-built bits: the investigation score is shown at the end but nothing ever raises it, only Mario has dialogue, Albert, Paul and the Sergeant have none, Paul's own suspect plot and the hints never got written, and the ending says "You did very well, Inspector" no matter what. The murderer's home is two rooms described as "This is the living room." and "This is the kitchen." I'd say it is about 40% of the competition game I had in mind.</p>
+<h2>Is it a real game?</h2>
+<p><b>Playable demo.</b> There is one case with a beginning, an investigation, a re-enactment and an ending with a score out of 5 for the re-creation. You can't really lose: whatever happens, the night ends and you get congratulated. Knowing what to do, it is ten or fifteen minutes; without hints, you'll spend most of that guessing what the game wants.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt=""></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2021-09-07</b> Much better</li><li><b>2021-08-30</b> Adding stabbing and testing and an end game state</li><li><b>2021-08-29</b> Now all poison killings are possible</li><li><b>2021-08-29</b> Better bottle opener</li><li><b>2021-08-28</b> Do we need all this?</li><li><b>2021-08-28</b> First commit</li></ul>
 </main></body></html>

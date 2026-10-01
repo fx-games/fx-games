@@ -1,6 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Minecraft Mods · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>Minecraft Mods</h1><p class="meta">Started August 2026 · Minecraft 26.2 · Fabric · Java</p>
+<p class="done">Completion <span>▰▰▰▰▰▰▰▰▱▱</span> 80% · most mods done, aircraft port unfinished</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="https://github.com/memmaker/mc-mods/releases/latest">⬇ Download</a><a class="btn" href="https://github.com/memmaker/mc-mods">Source on GitHub</a></div>
 <p>This is my pile of small Fabric mods for Minecraft 26.2. Every mod lives in its own folder as a self-contained Gradle project, and one script builds and tests them all at once. Grab the jars you like from the releases page and drop them into your mods folder.</p>
 <p>Most of them add one craftable item that changes how you get around or survive. A few are ports of older mods I missed, and some just tune the pace of the game for the way my friends and I like to play.</p>
@@ -17,6 +18,39 @@
 <li><b>Pistol &amp; Silencer</b> and <b>Immersive Aircraft</b> (work in progress): ports of well-known mods.</li>
 <li><b>FX Globals</b>: longer days, slower hunger, reusable arrows, headshots and a starter kit.</li>
 </ul>
+<h2>Features</h2>
+<ul>
+<li>17 separate Fabric mods for Minecraft 26.2, each its own Gradle project in one repo.</li>
+<li>Small item mods: White Flag, Plush Boots, Glider, Miniature Rebreather, Fireproof Suit, Lift, Climbing Claws in six materials.</li>
+<li>Stealth and Alert: vision cones, an awareness bar, Idle → Suspicious → Searching → Fighting, and noise that walls dampen.</li>
+<li>Seamless Crafting and Craft Tracker: crafting from nearby chests and a HUD list that follows a recipe chain down to raw materials.</li>
+<li>Photo Safari with Camerapture bundled inside, a species checklist and a loot mode that takes drops without killing.</li>
+<li>Bot Build: a wand outlines a box, ghost blocks show the plan, a bot fetches and places the real blocks.</li>
+<li>Ports of bigger mods: Grappling Hook with smithing upgrades, Pistol &amp; Silencer, and a partial Immersive Aircraft.</li>
+<li><code>build.sh</code> and <code>test.sh</code> build every mod and run headless game tests per mod, also on GitHub Actions.</li>
+</ul>
+<h2>Under the hood</h2>
+<p class="meta">≈ 38,900 lines of Java (plus 4,800 vendored from Camerapture) · 1,100 lines of shell and Python · 9 commits</p>
+<p>Over two thirds of the Java is the two big ports: Grappling Hook is about 14,200 lines and Immersive Aircraft about 11,400. My own mods are mostly a few hundred lines each; White Flag is 164.</p>
+<p>FX Globals does headshots without knowing what any mob's head looks like on the server, so it guesses (<code>fx-globals/.../Headshots.java</code>):</p>
+<pre><code>/** No per-mob model data is available server-side, so the head is approximated as the top
+ * slice of the mob's own hitbox, narrowed inward ...
+private static final double HEAD_HEIGHT_FRACTION = 0.25;
+private static final double HEAD_WIDTH_FRACTION = 0.6;</code></pre>
+<p>Craft Tracker's recipe graph is honest about its shortcuts (<code>craft-tracker/.../RecipeGraph.java</code>):</p>
+<pre><code>/// ponytail: a tag ingredient becomes its first item, so "any plank" turns into oak planks.
+/// Weighting the choice by what the player already carries is the obvious upgrade.</code></pre>
+<p>White Flag's game test checks that bone meal bleaches wool, and that it does not get eaten for nothing (<code>white-flag/.../WhiteFlagGameTest.java</code>):</p>
+<pre><code>// White wool in means nothing to bleach: the recipe must not burn the bone meal.</code></pre>
+<p>The Stealth and Alert README spells out the noise model: a metre of solid block costs eight points, each new material another four.</p>
+<h2>Ideas &amp; inspirations</h2>
+<p>Several mods are ports of things I missed on this version: Stealth and Alert from RedGhostRev's NeoForge mod, the pistol from MrCrayfish's Gun Mod, Grappling Hook from Yyon's mod via weaversworkshop's Skybound fork, and Immersive Aircraft from Luke100000. Photo Safari builds on chrrs' Camerapture. The rest come from wanting one item that changes how you get around or survive, plus FX Globals to tune the pace (longer days, slower hunger, reusable arrows) for how my friends and I play. <code>AGENTS.md</code> sets the house rules: every mod needs an icon for Modrinth, new recipes must be unlocked from the start, and every change bumps the version.</p>
+<h2>Where it started, where it ended</h2>
+<p>The first commit (2026-08-30) already brought 12 mods at once, from White Flag to Seamless Crafting, together with the build, test and publish scripts. On 2026-09-03 the ports arrived (Stealth and Alert, Pistol &amp; Silencer, Immersive Aircraft) along with headshots and starter gear, and the next day Craft Tracker and Grappling Hook. The last commit (2026-09-12) bundled Camerapture into Photo Safari so it no longer needs a separate install.</p>
+<h2>State of the repo</h2>
+<p>Nine commits in two weeks, last one 2026-09-12. Each mod builds on its own and has game tests that CI runs. The one clearly unfinished piece is Immersive Aircraft: its README calls it a "partial port, work in progress", compile- and boot-verified but with several things only reasoned through, not flown, and integrations like Ad Astra and JEI dropped. Everything else reads as done for what it sets out to do, so I'd put the collection at about 80%.</p>
+<h2>Is it a real game?</h2>
+<p><b>Mods.</b> These are add-ons for Minecraft, not a game of their own. Photo Safari's checklist and Postbote's deliveries give you goals, but the loop, the winning and the ending are still Minecraft's. You play as long as you keep playing Minecraft.</p>
 <h2>Latest updates</h2><ul class="log"><li><b>2026-09-12</b> Bundled Camerapture into Photo Safari, smarter Bot Build container search</li><li><b>2026-09-06</b> Fixed climbing claws sprites</li><li><b>2026-09-05</b> Photo Safari UI/UX fixes</li><li><b>2026-09-03</b> Peaceful loot, headshots, starter gear and two new mods</li><li><b>2026-09-03</b> Cleared compiler warnings and gametest noise</li><li><b>2026-08-30</b> First commit</li></ul>
 <p><a href="https://github.com/memmaker/mc-mods/commits">Full history →</a></p>
 </main></body></html>

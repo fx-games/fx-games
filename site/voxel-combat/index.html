@@ -1,11 +1,42 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Voxel Combat Revolved · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>Voxel Combat Revolved</h1><p class="meta">Started July 2023 · Go 1.21, OpenGL (go-gl/GLFW) · voxel tactics</p>
+<p class="done">Completion <span>▰▰▰▱▱▱▱▱▱▱</span> 30% · core combat works, the big vision does not</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a><a class="btn" href="https://github.com/memmaker/voxel-combat-revolved/releases">⬇ Download / Releases</a><a class="btn" href="https://github.com/memmaker/voxel-combat-revolved">Source on GitHub</a></div>
 <p class="meta">Controls: click a tile to move · W/A/S/D pan, Q/E rotate, Z/C lower/raise level · R fire, action bar for grenade / free aim (click to lock the mouse) / overwatch / reload · Tab next unit · Esc back</p>
 <p>Voxel Combat Revolved is my love letter to X-Com. I have played the 1994 original and the Firaxis reboots a lot, but I never liked the abstract hit-chance system. So I took the XCOM-style turn-based squad combat, brought back real ballistics like the original had, and added the free-aim mode I loved in Phoenix Point.</p>
 <p>All of that happens in a Minecraft-style block world where the terrain is destructible, so a rocket launcher really changes the map. I wrote the engine myself in Go on top of plain OpenGL, with GLTF character models, animations, baked lights and an action cam.</p>
 <p>Multiplayer was the point from day one: the game is a client/server design, and even a single-player match quietly spawns a server and a headless AI client. It is still a prototype, but you can already move soldiers, aim freely and blow holes in walls.</p>
+<h2>Features</h2><ul><li>Turn-based squad combat on an isometric grid, with action points, pathfinding (Dijkstra) and climbing/dropping between levels</li><li>Free aim: drop into first person and shoot at whatever you want, bullets are ray-traced against blocks and individual body parts</li><li>Destructible Minecraft-style block terrain with greedy-ish chunk meshing and automatic re-meshing in the background</li><li>Weapons: rifles, shotgun, sniper, pistol, rocket launcher; throwables including smoke grenades</li><li>Overwatch reaction fire and a "pressure" system that hurts sniper accuracy when enemies are close</li><li>Client/server from the ground up over TCP; single player spawns a server and a headless AI client</li><li>Two mission types: deathmatch and "defend" (protect objectives for a number of turns), random or manual unit placement</li><li>GLTF soldier models with animations, blood particles, decals, baked lights and an action cam</li><li>Built-in map editor, maps load from Amulet/Minecraft-style construction files</li></ul>
+<h2>Under the hood</h2><p class="meta">≈ 21,000 lines of Go · 725 lines of GLSL · 134 commits</p>
+<p>The whole overwatch rule set is one struct with comments doing the game design (game/game_instance.go):</p><pre><code>MaxPressureDistance:       4,
+MaxOverwatchRange:         20,
+OverwatchAccuracyModifier: 0.8, // 20% penalty for overwatch shots
+OverwatchDamageModifier:   1.1, // 10% bonus damage for overwatch shots
+IsRangedAttackTurnEnding:  true,</code></pre>
+<p>Pressure: every enemy you can see within 4 blocks pushes on you, and snipers pay for it directly in accuracy (game/game_instance.go):</p><pre><code>if unit.HasWeaponOfType(WeaponSniper) {
+    // add penalty for sniper shots under pressure
+    pressureOnUnit := r.engine.GetTotalPressure(unit.UnitID())
+    pressureOnUnit = util.Clamp(pressureOnUnit, 0.0, 1.0)
+    pressureModifier = 1.0 - pressureOnUnit
+}</code></pre>
+<p>The AI opponent is honest about its ambitions. If no enemy is in sight it walks four blocks forward, next turn four blocks back (game/ai.go):</p><pre><code>moves := int32(4)
+if c.turnCounter%2 == 1 {
+    moves *= -1
+}
+...
+// HACK: assume this works
+unit.SetBlockPositionAndUpdateStance(chosenDest)</code></pre>
+<p>The engine has its own GJK + EPA collision code (engine/util/gjk.go, gjk_epa.go) and a 3D DDA voxel raycaster (engine/util/dda_raycast.go), all written from the blog posts linked in notes.txt.</p>
+<p>A small confession in notes.txt while learning the matrix math:</p><pre><code>-&gt; (AB)^-1 = B^-1 * A^-1 damn..</code></pre>
+<h2>Ideas &amp; inspirations</h2><p>The readme is blunt: X-Com 1994 for its ballistics (with a link to the LOFTEMPS.DAT page on UFOpaedia), Firaxis XCOM for the structure minus the hit-chance system, Phoenix Point for free aim, and UFO2000 as the multiplayer precedent ("We already had most of this").</p>
+<p>notes.txt is a long design diary. It has a section "Flaws of turn-based XCOM style games in general" (boring movement, nothing to do in the enemy turn, the stormtrooper effect) and one on "Where Phoenix Point failed". Design goals include deception and Yomi, reading the opponent's mind, with a counter for every move: dodge, deflect, parry, harden. There is a pasted Sun Tzu excerpt to go with it.</p>
+<p>Planned but not built: doors and chests, melee, health bars, skills, armor, bleeding out, a bullet cam for sniper shots, moving maps on trains or starships, and "Blood God bonus". The readme setting promises "Draft a team, Build a base, Exterminate the alien threat", none of which exists beyond the fight. The notes also flirt with giving up: "Switch to Godot?" and "Or Minetest?".</p>
+<h2>Where it started, where it ended</h2><p>The first commit on 2023-07-25 was isometric view angles and mouse picking, then "basic unit movement is working. kind of". Within ten days I had networking ("enabled virtual networking inside the same process", then TCP) and the first networked line of sight. So multiplayer really was there from the start.</p>
+<p>By the last proper commit on 2023-11-02 ("latest version") it had grown free aim, big units, smoke, throwables, pistol and rocket launcher, the defend mode, baked lights and an action cam. The commit messages are mostly "poc for ..." and that is honest: lots of systems proven, few finished. The two commits from 2026 only add the browser (WebAssembly/WebGL2) build.</p>
+<h2>State of the repo</h2><p>Untouched from November 2023 until the 2026 web port. It builds (there is a GitHub Actions workflow and build scripts for server, client, standalone, Windows and web). There are about 17 TODO/HACK comments, mostly small: blood decals on unit skin, frustum culling, "destroy weapon if damage is too high". notes.txt lists open bugs, e.g. you cannot look inside buildings with roofs.</p>
+<p>The combat core is there. The game around it, meaning the campaign, base, drafting, proper AI, lobby polish and most of the design notes, is not. I would say about 30% of what I set out to make.</p>
+<h2>Is it a real game?</h2><p><b>Playable demo.</b> A match has a real ending: the server declares a winner when one side has no active units left, or in defend mode when the objectives are destroyed or the turn limit runs out. But the AI shuffles back and forth until it sees you and then shoots, so a match against it is over in a few minutes, and there is nothing after it. Against a human over the network it holds up better.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt=""><img src="img/shot2.png" alt=""><img src="img/shot3.png" alt=""></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2023-11-02</b> Latest version</li><li><b>2023-10-04</b> Animation polish and bugfixes</li><li><b>2023-09-29</b> Baked lights proof of concept</li><li><b>2023-09-27</b> Asset switch</li><li><b>2023-09-19</b> Proof of concept for the action cam</li><li><b>2023-09-17</b> MVP for pistol and rocket launcher</li></ul>
 <p><a href="https://github.com/memmaker/voxel-combat-revolved/commits">Full history →</a></p>

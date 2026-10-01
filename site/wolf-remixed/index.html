@@ -1,11 +1,42 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Wolf Remixed · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>Wolf Remixed</h1><p class="meta">Started 2013, revived February 2022 · C#, MonoGame (ex-XNA 4.0), Tiled</p>
+<p class="done">Completion <span>▰▰▰▰▰▰▰▱▱▱</span> 70% · presentable, but player damage is switched off</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a><a class="btn" href="https://github.com/memmaker/WolfRemixed/releases">⬇ Download / Releases</a><a class="btn" href="https://github.com/memmaker/WolfRemixed">Source on GitHub</a></div>
 <p>Wolf Remixed is my Wolfenstein 3D style raycasting engine. I first wrote it back in 2013 in C# and XNA 4.0, with an entity-component system (Artemis) holding the game logic together, and then left it sitting on a hard drive for almost a decade.</p>
 <p>In early 2022 I dug it out and decided to make it run again. That meant moving from XNA to MonoGame, from xTile maps to Tiled, from FMOD to MonoGame's own sound effects, and fixing more than 600 compile errors before the first build. The raycaster itself still worked fine; the game states, ECS and resolution scaling were the hard part.</p>
 <p>By the end it had floor and ceiling texture mapping, menus, sounds and a playable remix of classic 90s shooter references. There is a "Final Version" 1.0 build on the releases page if you want to wander its corridors.</p>
 <p>The browser version runs the same C# code through KNI (Blazor WebAssembly). Controls: click to capture the mouse, mouse to turn, W/S move, A/D strafe, left click fires, right click opens doors, 1–9 switch weapons, M toggles the map, Esc for the menu.</p>
+<h2>Features</h2><ul><li>Wolfenstein-style DDA raycaster with textured walls, plus textured floor and ceiling (added February 2022).</li><li>Distance shading, configurable per map (cutoff, divisor, ceiling and floor colour).</li><li>Sliding doors, keys, secret walls ("You found a secret area!") and an automap with zoom.</li><li>A zoo of borrowed enemies: Wolf guards, Doom marine, Blake Stone scientists and furniture monsters (table guy, cabinet guy, egg guy, statue guy), Catacomb bats, blue monster and zombies.</li><li>Enemy AI as a state machine: Stand, StandHidden, Path, Chase, PrepareFire, Fire, Pain, Die, BreakFree.</li><li>Weapons: Doom punch, Doom shotgun, Duke shotgun, fireballs and more, with a HUD face that reacts.</li><li>Zombie trigger areas that keep spawning zombies every 3 seconds while you stand in them.</li><li>Gravestone message triggers that pause the game and show a quote, and scripted "story" sequences (fade, eye-height drop, text).</li><li>Cheat codes, a main/options/escape menu, random loading screens, and a web build via KNI.</li></ul>
+<h2>Under the hood</h2><p class="meta">≈ 12,900 lines of C# of my own · ≈ 7,300 lines of vendored Artemis ECS · 14 commits</p>
+<p>The cheat codes are my own spin on the classics, read from a rolling key buffer in <code>Engine/SubSystems/InputHandler.cs</code>:</p><pre><code>if (bufferString.Contains("fxdqd"))
+{
+    HealthPoints playerHp = controlledEntity.GetComponent&lt;HealthPoints&gt;();
+    playerHp.IsImmortal = !playerHp.IsImmortal;
+    mKeyBuffer.Clear();
+}
+if (bufferString.Contains("fxvanitar")) ...
+if (bufferString.Contains("fxguns")) ...</code></pre>
+<p>They answer with "DEGREELESSNESS MODE ON" and "impulse 9 activated..", in <code>RaycastGame.cs</code>.</p>
+<p>The whole distance shading is four lines in <code>Engine/Datastructures/Tilemap.cs</code>:</p><pre><code>public float GetShadingFactor(double dist)
+{
+    dist *= 4;
+    dist += 48;
+    float lerpFact = (float)(dist / 128);
+    return lerpFact;
+}</code></pre>
+<p>Shading the floor and ceiling too was tried and given up on, still commented out in <code>Engine/Managers/Raycaster.cs</code>:</p><pre><code>/* TODO: Make this work and not slow down everything
+double dist = HorizontalToDist(screenHeight - y);
+float factor = mTilemap.GetShadingFactor(dist);</code></pre>
+<p>Player damage is disabled in two places, so enemies shoot at you for show (<code>RaycastGame.cs</code> and <code>States/Fire.cs</code>):</p><pre><code>//PlayerHealthPoints.ReceivedDamage += PlayerReceivedDamage; // TODO: enable for damage
+// mPlayerHealthPoints.DealDamage(CalculateDamage(dist),mSelf); // TODO: enable for damage</code></pre>
+<p>The ending, from <code>RaycastGame.cs</code>:</p><pre><code>"You did it. You played through this dream of mine.\n\nThanks. And keep on rolling.."</code></pre>
+<h2>Ideas &amp; inspirations</h2><p>It is a remix in the literal sense: the asset folders are named <code>Wolf</code>, <code>Doom</code>, <code>BlakeStone</code>, <code>Catacomb</code>, <code>Duke</code> and <code>Zelda</code> (the Zelda old man, a Zelda stone wall, "hunt_killed" bodies). The loading screens rotate between id, Wolf and Blake Stone themes.</p>
+<p>The gravestones in <code>Content/Maps/map1.tmx</code> are a pile of game and film quotes: "The grave of a spoony bard!", "War. War never changes.", "I never asked for this.", "I AM ERROR", Tassadar's "Aiur shall not fall!", Manny Calavera's "enjoy the trip", and Lester Moore's "four slugs from a forty-four".</p>
+<p>The README nice-to-have list wanted Shadow Warrior and Blood references, real push walls, lighting, skyboxes for outside areas, exploding barrels and destroyable walls. A commit titled "Ideas" added TODOs to the raycaster ("Idea - What happens when we change this?") and a link to the lodev.org push wall tutorial.</p>
+<h2>Where it started, where it ended</h2><p>It started in 2013 as an XNA 4.0 engine with sub-projects, 2D top-down code and a hardware mouse, all of which the README says I cut when I revived it. The first 2022 commit is the repair job: 600+ compile errors, a rebuilt game state manager, xTile maps swapped for Tiled. Two weeks of commits later ("still not scaling", "Workaround for MessageTrigger") it had floor and ceiling textures, menus and sounds, and the last 2022 commit is literally "Make it presentable". In 2026 it got a KNI Blazor web build and a neutral title screen.</p>
+<h2>State of the repo</h2><p>Last real work was February 2022; the 2026 commits only add the web build and an F1 controls overlay. The README to-do list is still open: missing sounds for the Duke shotgun and "Magic Hand", fullscreen, replacing the start screen, and "a nice end screen with link to youtube". The map list is just <code>map1</code> and <code>testmap</code>. Player damage is commented out, floor shading is disabled for speed, and a few <code>Primitives2D.cs</code> TODOs ("Do... *something*... with these") remain. For a "presentable" remix demo I'd call it about 70% there.</p>
+<h2>Is it a real game?</h2><p><b>Playable demo.</b> There is a full loop: walk the maps, collect keys, find secrets, shoot things, reach the end and get a thank-you credits screen. There is a death sequence too, but since player damage is switched off you can't actually lose. Two maps (one of them called testmap), so it is a short run.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"><img src="img/shot3.png" alt="" onerror="this.remove()"></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2022-02-22</b> Make it presentable</li><li><b>2022-02-22</b> Add sounds and fix shading</li><li><b>2022-02-22</b> Menus and assets</li><li><b>2022-02-15</b> Removed FMOD, made steps towards a real menu</li><li><b>2022-02-14</b> Floor and ceiling texture mapping now working</li><li><b>2022-02-07</b> First commit</li></ul>
 <p><a href="https://github.com/memmaker/WolfRemixed/commits">Full history →</a></p>

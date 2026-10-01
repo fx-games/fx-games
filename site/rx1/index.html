@@ -1,10 +1,39 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>rx1 · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>rx1</h1><p class="meta">2024 · Go + tcell · terminal roguelike</p>
+<p class="done">Completion <span>▰▰▰▰▰▰▱▱▱▱</span> 60% · winnable, but Rogue feature list unfinished</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a><a class="btn" href="https://github.com/memmaker/rx1">Source on GitHub</a></div>
 <p>rx1 stands for <b>Rogue Variant I</b>. The question behind it was simple: what would I make if the original 1980 Rogue had come out yesterday and I wanted to write my own variant? So it keeps the classic rules (26 dungeon levels, the Amulet, bump-to-attack, unidentified potions, scrolls, rings and wands) and runs in an 80×25 terminal with a 80×23 map.</p>
 <p>Then I sanded off the parts of Rogue that annoy me. There's less pure RNG, starving and permanent stat loss are softer (you get a temporary "Weakened" status instead), dark rooms are gone, and fatigue points feed a small tactics menu. On the comfort side you get colors, health bars, smart targeting, running and CP437-style glyphs. Secret doors made way for Brogue-style treasure rooms and zoos.</p>
 <p>It was a playground more than a finished game, and a lot of what I learned here later grew into <a href="../contractor/">Contractor</a>. The browser version is the real terminal game, rendered into a grid of text. Your name is "Rogue" unless you add <code>?name=…</code> to the URL, and saves only live until you close the tab.</p>
+<h2>Features</h2>
+<ul><li>26 generated dungeon levels (Rogue-style grid, accretion and "megadungeon" generators in <code>dungen/</code>) plus prefab vaults.</li><li>The Amulet of Yendor is forced to spawn on level 26, and climbing back out with it wins the game.</li><li>Unidentified potions, scrolls, rings, wands and amulets, all defined in plain <code>.rec</code> data files.</li><li>A GURPS-flavoured rules core: attributes, skills, 3d6 rolls, damage resistance and a critical hit table.</li><li>Fatigue points that pay for a small tactics menu.</li><li>Monster AI, throwing, zapping, running and auto-move, smart targeting and a context menu.</li><li>Colors, health bars, CP437 glyphs and themes, all on an 80×25 terminal.</li><li>A high score table and an ASCII-art win screen.</li><li>41 monster lore pages and other documents to find and read.</li></ul>
+<h2>Under the hood</h2>
+<p class="meta">≈ 24,700 lines of Go · 2,400 lines of .rec data · 8 commits</p>
+<p>Climbing up without the Amulet makes the dungeon "unstable": each ascent adds 10% to the chance that the stairs crumble and drop you back down, sometimes two levels. From <code>game/state.go</code>:</p>
+<pre><code>chance := util.Clamp(0, 0.9, float64(min(10, g.ascensionsWithoutAmulet))/10.0)
+return rand.Float64() &lt; chance</code></pre>
+<p>The crit table in <code>rpg/rpg.go</code> was copied in spirit from GURPS, with the gorier results still waiting:</p>
+<pre><code>case 7:
+    damageMultiplier = 1.5 // TODO: inflict major wound/bleeding
+case 8:
+    damageMultiplier = 1.5 // TODO: loss of limb
+case 12:
+    damageMultiplier = 1.5 // TODO: drop equipment</code></pre>
+<p>Monsters with a defined 0 HP would despawn the moment they arrive, so <code>game/state.go</code> does this:</p>
+<pre><code>actor.charSheet.SetStat(rpg.HitPoints, max(1, def.HitPoints)) // hack to avoid 0 hp actors which would despawn immediately</code></pre>
+<p><code>sources.txt</code> keeps the original Rogue monster table from the PC source as a reference, comments included:</p>
+<pre><code>{ "jabberwock",  70,	0,	{ XX,4000, 15,   6, ___, "2d12/2d4", ___ } },
+{ "ur-vile",	 0,	ISMEAN,	{ XX,190,   7,  -2, ___, "1d3/1d3/1d3/4d6", ___ } },</code></pre>
+<h2>Ideas &amp; inspirations</h2>
+<p>The text files make the influences obvious. <code>history.txt</code> is a timeline from Rogue 1980 through Hack, Moria, Super Rogue and XRogue, and <code>sources.txt</code> points at the roguepc source on GitHub. <code>ideas.txt</code> lists the interactions of "Grog" and Moria, with a plan to boil all of quaff/read/eat/zap down to one "USE ITEM" key. It also lists what's wrong with Rogue: "Too much RNG", "Starving is too harsh", "Dark rooms are way too annoying" and "Gold is useless", with ideas to throw gold at monsters or spend it in shops.</p>
+<p><code>skills.txt</code> asks "How to apply GURPS?" and plans maneuvers you unlock one by one, plus armor that costs dodge instead of real encumbrance. <code>mechanics_master_list.txt</code> lists the Rogue monster abilities to rebuild (mimics, rust, gold and item theft, confusion). The TODO in <code>design_goal.txt</code> dreams of "Level Challenges from the Gods" (don't use scrolls, don't kill anyone) and Warrior/Adventurer modes, and on balance it just says "Fuck balance - Do what feels right for the dungeon". The lore idea links to the NetHack wiki.</p>
+<h2>Where it started, where it ended</h2>
+<p>The first commit (2024-04-07) was already big: 178 files, around 26,000 lines, so the real start happened before git. The early goal in <code>design_goal.txt</code> was "a minimal UI Layer for roguelikes" with 2-bit monochrome and at most 26 items. Two snapshot commits followed, "before experiments" and "before doing wild stuff" (2024-04-28), and that's where it stopped. It became a full colored Rogue variant with a GURPS-style rules engine on top. The 2026 commits only make it build again, run in the browser, and add the lore documents.</p>
+<h2>State of the repo</h2>
+<p>Last real work was April 2024. It builds for desktop and WebAssembly. The TODO still has two bugs (equipment stat bonuses aren't shown anywhere, and Blindness never wears off) and open items for saving/loading, level persistence, traps, monster abilities, the full food clock and the full ID game. The source has 10 TODOs, mostly unfinished crit effects and small animation notes. The win condition is marked "GOOD ENOUGH". I'd say it's about 60% of the way to "a complete modern Rogue": the loop is there, a good chunk of Rogue's rules isn't.</p>
+<h2>Is it a real game?</h2>
+<p><b>Playable roguelike.</b> Yes, mostly. You can die (game over with a high score), and you can win by bringing the Amulet up from level 26 to the win screen. That means 26 levels down and the whole way back up, so there's plenty to play. Expect missing pieces though: no saving, no traps, unbalanced spawns, and some status effects that misbehave.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"><img src="img/shot3.png" alt="" onerror="this.remove()"></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2026-10-01</b> Playable in the browser</li><li><b>2026-10-01</b> Builds again after code.rocketnine.space went away</li><li><b>2024-04-28</b> Snapshot before doing wild stuff</li><li><b>2024-04-16</b> Snapshot before experiments</li><li><b>2024-04-07</b> First commit</li></ul>
 <p><a href="https://github.com/memmaker/rx1/commits">Full history →</a></p>

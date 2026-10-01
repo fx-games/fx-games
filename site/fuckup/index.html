@@ -1,10 +1,38 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>The Hunt for M · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>The Hunt for M</h1><p class="meta">Released October 2026 · PHP 8, jQuery Terminal · browser riddle game</p>
+<p class="done">Completion <span>▰▰▰▰▰▰▰▰▱▱</span> 80% · ends early with a "for now"</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="https://ruzzoli.de/fuckup/">▶ Play in browser</a></div>
 <p>The Hunt for M ("die Jagd nach M") is an old riddle game of mine that I've brought back to life. You start on a moody teaser page with a burning M and no instructions, and from there it's up to you to follow the trail. It's an ARG-style puzzle hunt, so poking around, reading source and thinking sideways are all part of the game.</p>
 <p>Its heart is FUCKUP, the "First Universal Cybernetic-Kinetic Ultra-Micro Programmer", a fake retro terminal in the browser. Once you get in, you can list directories, read files, decrypt data, unlock things and connect to a little fictional network of hosts. Those hosts hide images, videos and clues for the next step.</p>
 <p>The original ran on an ancient PHP stack, with Flash in places. For this release I ported the backend to PHP 8, fixed some security holes, squashed the history to strip out old credentials and put it behind nginx. It's in German and a bit cryptic on purpose. Good luck!</p>
+<h2>Features</h2><ul><li>A fake terminal in the browser (jQuery Terminal 0.4.22) talking JSON-RPC to a PHP backend, with login and tab completion.</li><li>A fictional network of 16 hosts, from MainFrame and testserver.com to skynet.org, protovision.com, spqr.gov and louvre.fr.</li><li>pBasic, my own little BASIC interpreter in PHP. Every in-game command (ls, cat, connect, unlock, createuser…) is a pBasic script.</li><li>Compiled programs: scripts get gzipped and base64'd into .ex files, so you can't just read the source of the tools you find.</li><li>Cipher puzzles: Caesar shift, ROT13, substitution and base64 tools, plus text that's been encrypted with them.</li><li>Turing Locks: the final door makes you submit an actual Turing machine that passes randomly generated tests.</li><li>User accounts that you have to create yourself by finding a privilege escalation tool.</li><li>An admin area for intel entries and servers, and a teaser page with a burning M and an intro video.</li></ul>
+<h2>Under the hood</h2><p class="meta">≈ 3,500 lines of PHP · 300 lines of pBasic · 650 lines of CSS · 1 (squashed) commit</p>
+<p>The game's tools are written in pBasic, a GOTO-and-labels BASIC whose interpreter is a PHP port of Bob Nystrom's Jasic. Here's the Caesar cipher tool you can find on testserver.com (<code>xterm/network/testserver.com/caesar.pb</code>):</p><pre><code>currentletter = ord(currentletter) - 97
+currentletter = currentletter + shift
+currentletter = currentletter % 26
+currentletter = currentletter + 97
+currentletter = chr(currentletter)
+skipLetter:
+output = output + currentletter
+counter = counter + 1
+if counter &lt; length then beginShiftLoop</code></pre>
+<p>The interpreter credits its origin right at the top (<code>xterm/sub/pBasic.php</code>):</p><pre><code>/* original: https://github.com/munificent/jasic/blob/master/com/stuffwithstuff/Jasic.java */</code></pre>
+<p>The Turing machine that checks your lock solution reads rules as CSV lines, and since players submit them, it now has a step limit (<code>xterm/sub/TuringLocks/TuringMachine.php</code>):</p><pre><code>// players submit these machines: cap runtime so a loop can't hang the server
+if (++$steps &gt; 10000)
+{
+    $this-&gt;lastinput = $input;
+    return $this-&gt;getTapeContents();
+}</code></pre>
+<p>A lock is just a function that makes random test pairs. The invert lock wants 0 and 1 swapped, done with the oldest trick in the book (<code>xterm/sub/TuringLocks/InvertLock.php</code>):</p><pre><code>$outputstring = str_replace('0', 'a', $inputstring);
+$outputstring = str_replace('1', '0', $outputstring);
+$outputstring = str_replace('a', '1', $outputstring);</code></pre>
+<p>The "compiler" for .ex files is one line (<code>xterm/sub/packer.php</code>):</p><pre><code>file_put_contents(str_replace('.pb','.ex',$argv[2]),base64_encode(gzcompress(file_get_contents($argv[2]))));</code></pre>
+<h2>Ideas &amp; inspirations</h2><p>The network is a pile of hacker movie and nerd references. protovision.com has the game list from WarGames, ending in <code>GLOBAL THERMONUCLEAR WAR</code>. section6.gov holds a text about Project 2501, the Puppet Master from Ghost in the Shell. There's skynet.org, stevejacksongames.com, packetstorm.org with a "phrack" file, and movies.com with FAQs on The Matrix, Minority Report and The Ring. The name FUCKUP itself is the computer from the Illuminatus! trilogy, and ingolstadt.de with "lichtbringer.txt" nods the same way.</p>
+<p>The story frame is the Voynich Project, which you want to join. The MainFrame readme sets the tone: "You need to find a tool named createuser." The clues chain across hosts, e.g. spqr.gov's <code>brutus.txt</code> is Caesar-shifted and sends you to louvre.fr, where the advice is that "most people always miss the artist's signature."</p>
+<h2>Where it started, where it ended</h2><p>I can't show the beginning from git: the history is squashed into a single commit to strip old credentials, so all I know is from the code. It started as a teaser page plus a Flash episode (<code>demo/fuckup.episode1.swf</code> is still in the repo) and grew into the terminal with its own scripting language. What it is now is that terminal, ported to PHP 8 and running on nginx, with the Flash part left as a relic.</p>
+<h2>State of the repo</h2><p>One commit, the revival: PHP 8 port, security fixes, nginx config and a deploy script. The trail is playable from the teaser to the Turing Lock on skynet.org. Open TODOs are small and old: "multiple search words, boolean operators" in the DB search and two in the admin page about file paths and deletion. There's still an access log (<code>webStats/termAccessLog.txt</code>) and a "Episode 1" Flash file that no browser runs anymore. The reward text says it plainly: "The Hunt for M ends here, for now." So it's a finished first chapter of something meant to be longer. I'd say 80%.</p>
+<h2>Is it a real game?</h2><p><b>Complete chapter.</b> There is a clear goal and a real ending: break the Turing Lock and you get a message that the hunt ends here. There's no lose state, you can only get stuck. How long it lasts depends on how good you are with ciphers and Turing machines, somewhere between an evening and "never". The "for now" tells you a sequel was planned and never came.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"><img src="img/shot3.png" alt="" onerror="this.remove()"></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2026-10-01</b> PHP 8 port, security fixes, nginx deploy to ruzzoli.de/fuckup</li></ul>
 </main></body></html>

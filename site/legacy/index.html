@@ -1,10 +1,46 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Legacy · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>Legacy</h1><p class="meta">Started October 2023 · Go 1.21, Ebitengine, LDtk · EGA-style tiles</p>
+<p class="done">Completion <span>▰▰▱▱▱▱▱▱▱▱</span> 20% · systems exist, story and ending don't</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a><a class="btn" href="https://github.com/memmaker/Legacy">Source on GitHub</a></div>
 <p>Legacy is my attempt to fit the things I love about old CRPGs into something you can play in a short session. I wrote it in Go with Ebitengine, drew tiny EGA-style tiles and built the maps in LDtk.</p>
 <p>The setup: an entity called <b>the Architect</b> made an isolated world and filled it with people taken from other worlds and eras. Most of them have lost their memories, but you still have yours. Four factions compete for control: the <b>Literates</b>, who turn written words into magic; the <b>Brotherhood of Fists</b>; the merchant followers of <b>Tauci</b>; and the <b>Lightbringers</b>, who think the world is a prison.</p>
 <p>You can talk your way through problems, recruit followers, read Rogue-style scrolls, drink potions and dive into procedurally generated dungeons. It is still a rough prototype, but it is full of odd little systems like wells, clocks, shops and mirrors.</p>
+<h2>Features</h2>
+<ul><li>Party-based movement on a tile map built in LDtk, with followers you can recruit</li><li>Turn-based combat where enemies fight back, plus breakable walls</li><li>NPCs with conversations, skill checks and their own skills, defined in plain-text rec files (<code>assets/npc/*.txt</code>)</li><li>Vendors, a bank teller, a healer and a trainer in the Tauci town</li><li>Rogue-style scrolls, potions, wands, keys, armor, weapons and an inventory with tooltips</li><li>Odd world objects: wells you climb down, clocks, mirrors, shrines, fireplaces, barbecues, tombstones, chests</li><li>A procedurally generated dungeon (the "Dungeon of Doom") with its own shops</li><li>Save and load, field of view, A*, JPS and Dijkstra pathfinding</li><li>Angband sound pack for effects, and a browser (wasm) build</li></ul>
+<h2>Under the hood</h2>
+<p class="meta">≈ 25,000 lines of Go · ≈ 1,800 lines of NPC, scroll and dialogue text · 23 commits</p>
+<p>A magical mirror just asks you where to go and teleports you there, which is why DESIGN.txt worries that someone will type "Home" into it. From <code>game/mirror.go</code>:</p>
+<pre><code>Text: "Touch the mirror",
+Action: func() {
+    engine.AskUserForString("Where to? ", 14, func(text string) {
+        engine.TeleportTo(text)
+    })
+},</code></pre>
+<p>The "procedurally generated" dungeon is an accretion generator that glues up to 100 rooms onto existing ones. It is also seeded with a constant, so it is the same dungeon every time. From <code>dungen/accretion.go</code>:</p>
+<pre><code>func (g *AccretionGenerator) Generate(width, height int) *DungeonMap {
+    g.random.Seed(23)
+    ...
+    maxRooms := 100</code></pre>
+<p>NPCs are plain-text records, not code. The goddess-like "Mother" in <code>assets/npc/mother.txt</code> has 1000 health and opens with:</p>
+<pre><code>Key: _opening
+Text: "I feel weak"
+
+Key: name
+Text: I am not supposed to have a name.</code></pre>
+<p>I also wrote a small coroutine package (<code>gocoro/coroutine.go</code>) so scripted sequences can yield back to the game loop, and a whole rat battle lives in <code>game/tauci_rat_battle.go</code>, which still starts with a <code>//TODO</code>.</p>
+<h2>Ideas &amp; inspirations</h2>
+<p>DESIGN.txt states the goal as "A coffe break RPG sandbox with a plot": CRPG things (dense world, followers, quests, roleplaying choices) mixed with roguelike things (quick start, lots of loot, "a clear &amp; simple goal"). The town shops are copied straight from a list titled "Angband Town Vendors", and the sounds are the Dubtrain Angband sound pack.</p>
+<p>There is a section called "The Disco Elysium Approach": skills open options in any situation, and "Failure is always part of the story, not a game over." I also toyed with Fallout's SPECIAL stats and a "BELIEF" mechanic, a tradeoff like always drawing your weapon in danger.</p>
+<p>STORY.txt has the Architect, the four factions and a planned ending: open a portal with "the 4 corner crystals and four bearers" and leave, by choice or because the Architect throws you out, setting up a sequel. The theme was meant to be "The self-destruction of mankind." I rejected my own opening scene with "This is too much on the nose.." SCALE.txt plans a max level of about 20 and legendary weapons at 150-200 damage.</p>
+<h2>Where it started, where it ended</h2>
+<p>The first commit (October 2023) was already big: about 11,600 lines with A*, a party, books, a dialogue package and a map renderer. Over the next seven weeks the commits read like a checklist: steps, enemies fight back, save/load, wallbreaking, inventory and tooltips, skill checks, wells and clocks, NPCs using skills, and finally the Dungeon of Doom proof of concept in December 2023.</p>
+<p>It ended as a lot of working systems around one town (Tauci) and one dungeon. The Architect, the factions and the portal ending exist only in STORY.txt.</p>
+<h2>State of the repo</h2>
+<p>Real development stopped in December 2023, with dependency updates in August 2024. In 2026 there were only fixes (nil-pointer panics, keys no longer for sale) and the browser build. The code compiles to desktop and wasm.</p>
+<p>DESIGN.txt still lists the annoyances: rough saving and loading, rough combat, no selling, NPC patrols that keep walking during conversations, no quick slots. There are about 19 TODOs in the Go code, including the save/load code and "TODO: replace with usage of the dialogue system" on the vendor menu. Most of the content wishlist (summon monster, invisibility, fire propagation, unique weapon attacks) is not there. Measured against the plot-driven CRPG I described, I'd say it is about a fifth of the way.</p>
+<h2>Is it a real game?</h2>
+<p><b>Sandbox.</b> There is a lose state: when your party is defeated you get "Game Over". There is no win state and no ending; the portal finale is only in the notes. You can wander the town, talk, trade, fight rats and go into the dungeon for maybe half an hour to an hour, and then you have seen what exists.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"><img src="img/shot3.png" alt="" onerror="this.remove()"></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2026-09-14</b> Recfile switched to public version</li><li><b>2026-08-04</b> Never offer keys for sale</li><li><b>2026-06-11</b> Fixed nil-pointer panics in scroll stacking</li><li><b>2024-08-12</b> Dependency updates</li><li><b>2023-12-12</b> Proof of concept for the Dungeon of Doom</li><li><b>2023-10-24</b> First commit</li></ul>
 <p><a href="https://github.com/memmaker/Legacy/commits">Full history →</a></p>

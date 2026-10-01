@@ -1,10 +1,39 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Contractor · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
 <p><a href="../">← all games</a></p>
 <h1>Contractor</h1><p class="meta">Started April 2024 · Go 1.23, Ebiten, tcell · CP437 graphics</p>
+<p class="done">Completion <span>▰▰▰▱▱▱▱▱▱▱</span> 30% · engine done, story and endings missing</p>
 <div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a><a class="btn" href="https://github.com/memmaker/contractor">Source on GitHub</a></div>
 <p>Contractor is my attempt at the small, finished RPG I always wanted to play. Instead of a huge procedural wasteland, it has a few tightly packed places full of people, quests and awkward moral choices.</p>
 <p>You are a contractor in <b>The Dome</b>, a city where megacorps like Bushido-ArmaTech sell you the cyberware drug "Meld" and offer to "sponsor" your unlicensed children. Every main quest can be solved by fighting, sneaking or talking. Dying is the only game over: fail a check and you live with what happens next. The world reacts to what you do, and the endings change with it.</p>
 <p>It is written in Go with Ebiten and a CP437 tileset, and uses my own FOV, d100 rules, dungeon generator, dialogue scripting and a separate map editor (TextPainter).</p>
+<h2>Features</h2><ul><li>A d100 rule system with skills, derived stats, aimed shots at body parts and crippling damage (<code>d100/</code>).</li><li>A branching dialogue engine in recfile format with conditions, skill rolls and flags, e.g. <code>HasOutfit('business') &amp;&amp; HasVisibleWeapon()</code>.</li><li>The starter contract: collect $500 from a ripperdoc for "Jacob", with stealing, force, persuasion, freeing his ex-partner or going after the client as options.</li><li>Ten city zones and corporate HQs (EBI, Bushido-ArmaTech, Project 21, Terra Vitae) as hand-made maps.</li><li>Lockable, pickable and breakable doors, keypads you can hack with electronic lockpicks, containers, terminals.</li><li>Ranged combat with aimed and burst fire, grenades and a rocket launcher, plus a large table of zap/projectile effects.</li><li>In-world reading material: corporate pamphlets, news articles, a child-license statistic.</li><li>Shopkeepers with stack-based trading, NPC chatter and player quips in several attitudes (snarky, respectful, aggressive…).</li><li>Two front ends: a tcell terminal UI and an Ebiten renderer, now also built for the browser via wasm.</li><li>A <code>validation</code> tool that checks dialogues, skills and weapons and exits non-zero on errors.</li></ul>
+<h2>Under the hood</h2><p class="meta">≈ 45,200 lines of Go · 17,700 lines of recfile game data · 59 commits</p>
+<p>Electronic lockpicks: skill can cut the number you burn by up to 90%, with the maths worked out in the comment. <code>d100/globals.go</code></p><pre><code>// skill can range from 0% to 200%.
+// at 200% we want to have a 90% reduction in picks needed
+skillFactor := float64(actorSkill) / float64(SkillCap) // 0.0 to 1.0
+skillFactor = skillFactor * 0.9                        // 0.0 to 0.9
+picksNeeded := max(1, basePickCount-int(picksReducedBy))</code></pre>
+<p>Aiming at body parts is a straight penalty table, Fallout style. Eyes are the hardest target. <code>d100/bodypart.go</code></p><pre><code>case Eyes:
+	return -60
+case Head:
+	return -40
+case Groin:
+	return -30</code></pre>
+<p>Dialogue options gate on what you wear and carry, then roll a skill. From the client's dialogue, <code>data_atom/dialogues/jacob_thorne.rec</code>:</p><pre><code>o_text: I represent some bigger third party. You better listen carefully now.
+o_cond: HasOutfit('business') &amp;&amp; HasVisibleWeapon()
+o_test: RollSkill('social', 'Hard')
+o_succ: CorporateSuccess
+o_fail: CorporateFail</code></pre>
+<p>Honest comments about the movement code, <code>game/movement.go</code>:</p><pre><code>// THIS IS STILL HACKY; DOOR OBJECT ALSO IMPLEMENTS THIS</code></pre>
+<p>There is a full win screen with cash and high scores in <code>ui_console/core_shutdown.go</code>, and a <code>gameWon()</code> in <code>game/state_core.go</code>, but nothing ever calls it and the <code>win.txt</code> it reads does not exist.</p>
+<h2>Ideas &amp; inspirations</h2><p>Fallout is everywhere. <code>_notes/fallout_scope.txt</code> is literally a checklist of "Fallout Core Features" marked DONE or missing, and <code>_notes/tim_cain.txt</code> collects Tim Cain's thoughts on what he would change: "Endslides should include all long-term consequences", a "Take all" button, removing Luck, first shot bulls-eye.</p>
+<p><code>_notes/contractor.ideas.txt</code> borrows hacking from Deus Ex, Watch Dogs and Vampire: The Masquerade, and wants believable reactions: walking into a police station covered in blood should matter, in a gang hideout it should not. Cool ideas still on the list: a zombie shooting range, an escape room and a "Spider Jerusalem Style Journalism Mission".</p>
+<p>The world comes from <code>_notes/story_beats.txt</code>: a USA that closed its borders while the rest of the world drowned or burned, run by corporations like Eschaton Biotech and Bushido-ArmaTech, plus fashion brands like Void Atelier. <code>_notes/contractor.manifest.txt</code> sets the core rule: a contract ends fulfilled, broken, or with someone dead.</p>
+<h2>Where it started, where it ended</h2><p>The first commit is from 7 April 2024, followed by "before experiments" and "before doing wild stuff". Mid-2024 there is even a commit named "fo2 data files", so the start was very much a Fallout-like engine. The README's design pillars aimed for a small but complete RPG with multiple endings and every main quest solvable by fighting, sneaking or talking.</p>
+<p>What it became is a solid engine (rules, dialogue, maps, two renderers, an entity editor) with one fully branched starter quest, a city of maps and a lot of world text, but not yet the multi-quest story with endings.</p>
+<h2>State of the repo</h2><p>Most of the work happened April 2024 to January 2025, ending in a run of "pushing a state before testing the entity editor" and "adding and fixing" commits. Later I came back for stack-based trading, a wasm browser build and a publish script.</p>
+<p><code>_notes/todo_bugs.txt</code> is long: mines don't work, rats don't aggro and can be pickpocketed, Jacob Thorne's map is referenced but deleted, "Take all" sometimes needs two tries. <code>fallout_scope.txt</code> lists sneaking, stealing, repair, quests, traps, crits and melee weapons as missing. The win path is wired but never triggered. Against the README's goal of a complete, completable game I'd put it around 30%.</p>
+<h2>Is it a real game?</h2><p><b>Playable demo.</b> You can die, and that is a real game over. There is no way to win: the ending code exists but is never reached. What you get is the starter contract with its many branches and a city to walk around in, which is maybe an hour or two of poking at things before the content runs out.</p>
 <h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"><img src="img/shot3.png" alt="" onerror="this.remove()"></div>
 <h2>Latest updates</h2><ul class="log"><li><b>2025-01-29</b> Adding and fixing</li><li><b>2025-01-20</b> Entity editor work</li><li><b>2024-12-30</b> Removed some performance problems</li><li><b>2024-04-07</b> Initial commit</li></ul>
 <p><a href="https://github.com/memmaker/contractor/commits">Full history →</a></p>
