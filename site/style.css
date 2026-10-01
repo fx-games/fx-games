@@ -26,3 +26,7 @@ ul.log{padding-left:20px}ul.log li{margin:4px 0}ul.log b{color:var(--b);font-wei
 footer{color:var(--dim);font-size:13px;margin-top:64px}
 .noimg{aspect-ratio:16/9;display:grid;place-items:center;border-bottom:2px solid var(--a);background:repeating-linear-gradient(45deg,#1b1b25 0 10px,#15151d 10px 20px);font-family:"Press Start 2P",monospace;color:var(--dim);text-decoration:none}
 h2.sec{margin:56px 0 20px;font-size:14px;color:var(--b);text-shadow:none}
+/* cards in a row stretch to equal height; push the buttons to the bottom so they line up */
+.card{display:flex;flex-direction:column}
+.card>div{flex:1;display:flex;flex-direction:column}
+.card .btns{margin-top:auto;padding-top:16px}
