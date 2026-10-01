@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>Nova Rogue 1 · Felix' Games</title><link rel="stylesheet" href="../style.css"></head><body><main>
+<p><a href="../">← all games</a></p>
+<h1>Nova Rogue 1</h1><p class="meta">September 2026 · plain JavaScript, one file · lives in a page header</p>
+<p class="done">Completion <span>▰▰▰▰▰▰▱▱▱▱</span> 60% · five levels and a win, meant to grow</p>
+<div class="btns" style="max-width:420px"><a class="btn play" href="https://ruzzoli.de/roguelikes/">▶ Play in browser</a><a class="btn" href="https://github.com/memmaker/roguelikes/blob/main/minirogue.js">Source on GitHub</a></div>
+<p>Nova Rogue is a tiny roguelike that lives in the header of my roguelikes page, where it replaced an ASCII walk animation. The in-game title calls it "Nova Rogue V1". The host page is a collection of classic roguelikes you can play in the browser; this is only the thing at the top of it.</p>
+<p>Every level is the same map: two small rooms and a corridor between them. What changes is what happens in it. You fight a bat, meet a pale double of yourself, answer a knight's three questions on a bridge over a gorge, throw things across a chasm at a lever, and finally break a machine that keeps spitting out slimes.</p>
+<p>It is all one file, <code>minirogue.js</code>, about a thousand lines. It is written so that a new level is just a new entry in a list.</p>
+<h2>Features</h2>
+<ul><li>Five hand-made levels on one shared two-rooms-and-a-corridor map, with stairs down and (sometimes) up; levels you leave are remembered as they were</li><li>Bump combat with 10 hp, damage ranges, a short sword (2-4), leather armour (takes 1 off a hit) and a useless sandal; hp is restored once per new depth</li><li>Monsters with their own behaviour: an erratic bat, a snake, a random-walking rat, armour-piercing slimes, a slime machine, and a knight</li><li>The knight asks your name, your quest and your favourite colour, which has to be an HTML hex colour</li><li>Hidden levers you find by searching (<code>s</code>), visible levers you pull by walking into them or hitting them with a thrown item</li><li>Chasm tiles with a fall animation, a bridge that extends or retracts plank by plank, items that fall into the gorge</li><li>An inventory sidebar (<code>i</code>) with Angband symbols, colours and real stats; equip, throw, drop; throwing with keys or aimed with the mouse</li><li>Two themes: Unix Rogue (plain ASCII) and Epyx PC Rogue (CP437 glyphs, CGA colours), picked at random per load</li><li>A message log behind the page title, a Rogue-style status line in the subtitle, and a tombstone when you die</li><li>Progress reported to the page: going deeper and winning unlock game families in the roguelikes menu</li></ul>
+<h2>Under the hood</h2>
+<p class="meta">≈ 1,040 lines of JavaScript · ≈ 50 CSS rules in the host page · 37 commits on the file</p>
+<p>The file starts with a rule for myself, because the messages share one line with the page title. From <code>minirogue.js</code>:</p>
+<pre><code>// GOLDEN RULE: no log message longer than roughly 5 words. Messages share one line
+// in the title; say it short ("Thunk! Bridge extends."), never narrate.</code></pre>
+<p>The knight's replies to a wrong colour, chosen to fit that one line:</p>
+<pre><code>wrong: [
+  'Hex, peasant!',
+  'Not a colour.',
+  'Wrong. #RRGGBB!',
+  'Nice try.',
+  'Blue? #0000ff!',
+  'Speak CSS!',
+],</code></pre>
+<p>Monsters are self-contained entries with optional hooks. The bat is Rogue's bat:</p>
+<pre><code>bat: { hp: 4, dmg: [1, 2], glyph: { unix: 'B', epyx: 'B' },
+  act(g, m) {  // flies erratically, as in Rogue: every third turn a random flap
+    m.turns = (m.turns || 0) + 1;
+    if (m.turns % 3 === 0) return g.wander(m);
+    return g.adjacent(m) ? g.hurt(m, this.dmg) : g.chase(m);
+  } },</code></pre>
+<p>Levers fire named events, and any lever can fire any event. The tombstone is the same height as the map "so the header does not jump", and the stairs on the last level just say "Under construction.", so a new level is playable the moment it is appended.</p>
+<h2>Ideas &amp; inspirations</h2>
+<p>Rogue is everywhere: the vi keys, <code>s</code> to search, "no diagonal doors", the erratic bat, the two themes after Unix Rogue and the Epyx PC version. Items show up in the inventory with Angband's symbols and colours. The knight on the bridge and his three questions are Monty Python's bridge keeper, with the colour question turned into a CSS joke.</p>
+<p>The knight's hints, once you get past him, are the closest thing to a manual: "Press --more--", "Subtitles hide secrets", "'t' is for throwing" and "'g' is for graph.. text..".</p>
+<h2>Where it started, where it ended</h2>
+<p>It started on 2026-09-26 as a playable replacement for an ASCII walk animation in the header: one level, then a second with a hidden switch and a pale double that says "So it begins..", then the bridge and the knight. Three days later it had an inventory, items with real stats, levers as events, chasms, five level transitions that I cut back down to one, and on 2026-09-29 levels 4 and 5 and a proper combat scale.</p>
+<p>It ended as a five-level game with a win: break the slime machine. That win, and every new depth, now unlocks parts of the roguelikes site.</p>
+<h2>State of the repo</h2>
+<p>Last change was 2026-09-30 (the knight's hints). The code is clean and documented; the header comment explains how to add levels, monsters and items. Some things are marked as provisional: falling into a chasm is "For now: death", and an item thrown into a chasm is "For now: it is gone". The last level's stairs down still say "Under construction."</p>
+<p>The structure says it was meant to keep growing one level at a time. As a five-level header toy it works; as the thing its own comments describe, I'd put it a bit past halfway.</p>
+<h2>Is it a real game?</h2>
+<p><b>Short complete game.</b> There is a lose state (you die, get a tombstone, and any key starts over) and a win state (the slime machine bursts on level 5). After that there is nothing more to do. A run takes five to fifteen minutes, longer if you don't know about searching for levers or throwing things across the gorge.</p>
+<h2>Controls</h2>
+<ul><li><b>Arrow keys</b>, <b>h j k l</b>, <b>y u b n</b> (diagonals), <b>Home / PageUp / End / PageDown</b> (diagonals): move or attack</li><li><b>.</b>: wait a turn</li><li><b>s</b>: search (finds hidden levers); also walks away from a question</li><li><b>i</b>: inventory; inside it <b>↑ / ↓</b>, a letter, <b>Enter</b> or <b>Space</b> to pick, then equip, throw or drop</li><li><b>t</b>: throw: pick an item, then a direction (arrows, vi keys or numpad 1-9); any other key or <b>Esc</b> puts it away</li><li><b>g</b>: switch between the Unix and Epyx themes</li><li><b>Enter</b> / <b>Esc</b>: answer or leave the knight's prompt; <b>y / n</b> for yes/no questions</li><li><b>Mouse</b>: click a tile to step towards it, click yourself to search, click a tile to aim a throw</li><li>After death, any key starts a new run</li><li>On the host page: <b>F5</b> unlocks every game family, <b>F10</b> forgets all stored progress (debug keys)</li></ul>
+<h2>History</h2>
+<ul class="log"><li><b>2026-09-26</b> Playable mini-roguelike replaces the ASCII walk animation in the header</li><li><b>2026-09-26</b> Epyx PC Rogue theme; level 2 with hidden switch, snake and a pale double</li><li><b>2026-09-26</b> Message log behind the title, Rogue-style status line in the subtitle</li><li><b>2026-09-26</b> Level 3: the bridge, the knight's questions, a hidden lever throws him into the gorge</li><li><b>2026-09-29</b> Inventory sidebar, Angband-style items, item menus, level 4 retracted bridge</li><li><b>2026-09-29</b> Levers as named events, animated throws, the five-word golden rule</li><li><b>2026-09-29</b> Chasm tiles and falling, blue knight, speech lines</li><li><b>2026-09-29</b> Five level transitions, cut down to a single title card</li><li><b>2026-09-29</b> Mouse-aimed throws; stairs up on level 3, rat on level 4, slime machine on level 5</li><li><b>2026-09-29</b> New combat scale (10 hp, damage ranges), healing only on new depths</li><li><b>2026-09-29</b> Progress unlocks game families on the page</li><li><b>2026-09-30</b> The slime machine bursts before the win; <code>*</code> marks equipped items, <code>t</code> throws, shuffled knight hints, theme moves to <code>g</code></li></ul>
+<h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"><img src="img/shot3.png" alt="" onerror="this.remove()"></div>
+<h2>Latest updates</h2><ul class="log"><li><b>2026-09-30</b> Single quotes in the knight's hints</li><li><b>2026-09-30</b> Knight hint for g</li><li><b>2026-09-30</b> Theme switch on g</li><li><b>2026-09-30</b> * marks equipped items, t throws, shuffled knight hints</li><li><b>2026-09-30</b> The slime machine bursts before the win</li><li><b>2026-09-26</b> First version in the header</li></ul>
+<p><a href="https://github.com/memmaker/roguelikes/commits/main/minirogue.js">Full history →</a></p>
+</main></body></html>
