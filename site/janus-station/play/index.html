@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Janus Station · Play</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px monospace; overflow: hidden; }
+  #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; }
+  #back:hover { color: #fff; }
+  #hint { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; text-align: center; background: rgba(0,0,0,.6); cursor: pointer; z-index: 5; }
+  #hint small { color: #777; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<a id="back" href="../">← back</a>
+<canvas id="canvas"></canvas>
+<div id="hint">Loading…</div>
+<script src="wasm_exec.js"></script>
+<script>
+  // os on js/wasm reads files through Node's fs API. This is its read-only half,
+  // over the assets embedded in the wasm: web_js.go hands __mountFS a flat table
+  // of [path, address in wasm memory, length] and reads become typed-array copies.
+  // Writes fail with EROFS.
+  const files = new Map(), dirs = new Map([[".", []]]), fds = new Map();
+  let nextFd = 100;
+  const err = code => Object.assign(new Error(code), { code });
+  const norm = p => { const out = []; for (const s of p.split("/")) { if (s === "..") out.pop(); else if (s && s !== ".") out.push(s); } return out.join("/") || "."; };
+  const dir = p => dirs.get(p) || (dirs.set(p, []), dirs.get(p));
+  globalThis.__mountFS = t => {
+    for (let i = 0; i < t.length; i += 3) {
+      let name = t[i];
+      if (name.endsWith("/")) dir(name = name.slice(0, -1)); else files.set(name, [t[i + 1], t[i + 2]]);
+      const cut = name.lastIndexOf("/");
+      dir(cut < 0 ? "." : name.slice(0, cut)).push(name.slice(cut + 1));
+    }
+  };
+  const statOf = p => {
+    const f = files.get(p), d = dirs.has(p);
+    if (!f && !d) return null;
+    const size = f ? f[1] : 0;
+    return { dev: 0, ino: 0, mode: d ? 0o40755 : 0o100644, nlink: 1, uid: 0, gid: 0, rdev: 0, size, blksize: 4096,
+      blocks: Math.ceil(size / 512), atimeMs: 0, mtimeMs: 0, ctimeMs: 0, isDirectory: () => d };
+  };
+  globalThis.fs.constants.O_DIRECTORY = 0x10000;
+  Object.assign(globalThis.fs, {
+    open(p, flags, mode, cb) {
+      p = norm(p);
+      if (flags & ~0x10000) return cb(err("EROFS"));
+      if (!statOf(p)) { (globalThis.__miss ||= new Set()).add(p); return cb(err("ENOENT")); } (globalThis.__opened ||= new Set()).add(p); // TEMPLOG
+      fds.set(++nextFd, { p, pos: 0 }); cb(null, nextFd);
+    },
+    close(fd, cb) { fds.delete(fd); cb(null); },
+    fstat(fd, cb) { const f = fds.get(fd); f ? cb(null, statOf(f.p)) : cb(err("EBADF")); },
+    stat(p, cb) { const s = statOf(norm(p)); s ? cb(null, s) : cb(err("ENOENT")); },
+    lstat(p, cb) { this.stat(p, cb); },
+    readdir(p, cb) { const d = dirs.get(norm(p)); d ? cb(null, d.slice()) : cb(err("ENOENT")); },
+    read(fd, buf, off, len, pos, cb) {
+      const f = fds.get(fd), file = f && files.get(f.p);
+      if (file && file[0] < 0) (globalThis.__stubread ||= new Set()).add(f.p); // TEMPLOG
+      if (!file || file[0] < 0) return cb(err(f ? (file ? "EIO" : "EISDIR") : "EBADF")); // stubs have no bytes
+      const at = pos ?? f.pos, n = Math.max(0, Math.min(len, file[1] - at));
+      buf.set(new Uint8Array(__goMem.buffer, file[0] + at, n), off);
+      if (pos == null) f.pos += n;
+      cb(null, n);
+    },
+  });
+
+  const hint = document.getElementById("hint");
+  const canvas = document.getElementById("canvas");
+  const go = new Go();
+  WebAssembly.instantiateStreaming(fetch("janus.wasm"), go.importObject)
+    .then(r => {
+      globalThis.__goMem = r.instance.exports.mem; // gl_js.go views Go memory through this
+      hint.innerHTML = "Click to start<small>WASD move · mouse look · click shoot · F use · 1-9 weapons · Space jump · Esc releases the mouse</small>";
+      hint.onclick = () => {
+        hint.remove();
+        const p = canvas.requestPointerLock();
+        if (p && p.catch) p.catch(() => {});
+        go.run(r.instance);
+        // oto (the audio backend) waits for a touchend/keyup/mouseup after it starts
+        // before resuming its AudioContext. This click already counts as the user
+        // gesture, so nudge it with synthetic ones until it has had its chance.
+        const nudge = setInterval(() => document.dispatchEvent(new Event("touchend")), 250);
+        setTimeout(() => clearInterval(nudge), 30000);
+      };
+    })
+    .catch(e => { hint.textContent = "Failed to load: " + e; });
+</script>
+</body>
+</html>
