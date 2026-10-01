@@ -12,6 +12,7 @@
   /* cells are fractional px wide: bleed each background a hair into the next cell so no seams show (text paints after all
      backgrounds of a row, so this never covers glyphs); negative margin keeps the layout */
   #terminal span { padding-right: 0.06em; margin-right: -0.06em; }
+  #terminal .cell { display: inline-block; width: 1ch; vertical-align: top; text-align: center; overflow: hidden; }
   #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; font-family: monospace; }
   #back:hover { color: #fff; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-family: monospace; }
@@ -108,14 +109,25 @@
 // Block glyphs (U+2588 full, U+2580 upper half, U+2584 lower half) from the font never fill the line box exactly,
 // so walls get stripes. Paint them as cell backgrounds instead. tcell looks drawCell up globally on every call.
 const drawGlyph = drawCell
+// Pin every cell to exactly one column. Glyphs Menlo lacks (e.g. gold "⣴") come from fallback fonts with other
+// advances and would shift the rest of the row; boxing only those drifts against plain text, so box them all.
+function fixWidth(x, y) {
+  let el = content.data[y].data[x]
+  if (!el.style) { const span = document.createElement("span"); span.appendChild(el); el = content.data[y].data[x] = span }
+  el.classList.add("cell")
+}
 drawCell = function (x, y, c, comb, fg, bg, attrs) {
   const half = { 0x2580: "bottom", 0x2584: "top" }[c] // gradient direction: the "on" colour starts at the far side
-  if (c !== 0x2588 && !half) return drawGlyph(x, y, c, comb, fg, bg, attrs)
+  if (c !== 0x2588 && !half) {
+    drawGlyph(x, y, c, comb, fg, bg, attrs)
+    return fixWidth(x, y)
+  }
   drawGlyph(x, y, 32, comb, fg, bg, attrs)
   const el = content.data[y].data[x]
-  if (!el.style || !el.style.color) return drawGlyph(x, y, c, comb, fg, bg, attrs) // default colours: keep the glyph
+  if (!el.style || !el.style.color) { drawGlyph(x, y, c, comb, fg, bg, attrs); return fixWidth(x, y) } // default colours: keep the glyph
   const on = el.style.color, off = el.style.backgroundColor || "transparent"
   el.style.background = !half ? on : `linear-gradient(to ${half}, ${on} 50%, ${off} 50%)`
+  fixWidth(x, y)
 }
 </script>
 <script>
