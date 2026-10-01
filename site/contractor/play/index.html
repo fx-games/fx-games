@@ -92,10 +92,11 @@
   globalThis.fs = ops;
 })();
 </script>
+<script src="../../progress.js" data-size="30541294"></script>
 <script src="wasm_exec.js"></script>
 <script>
   const go = new Go();
-  WebAssembly.instantiateStreaming(fetch("contractor.wasm"), go.importObject).then(r => {
+  WebAssembly.instantiateStreaming(progressFetch("contractor.wasm"), go.importObject).then(r => {
     // game stays black until the first click/key, so tell the player
     const l = document.getElementById("loading"); l.textContent = "Click to start";
     addEventListener("pointerdown", () => l.remove(), { once: true });

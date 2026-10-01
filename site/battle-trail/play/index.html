@@ -41,10 +41,11 @@
   <div id="bar"><span id="modal-title"></span><button id="modal-close" aria-label="Close">✕</button></div>
   <div id="modal-body"></div>
 </div></div>
+<script src="../../progress.js" data-size="3167993"></script>
 <script src="wasm_exec.js"></script>
 <script>
   const go = new Go();
-  WebAssembly.instantiateStreaming(fetch("battletrail.wasm"), go.importObject)
+  WebAssembly.instantiateStreaming(progressFetch("battletrail.wasm"), go.importObject)
     .then(r => go.run(r.instance))
     .catch(e => { document.getElementById("loading").textContent = "Failed to load: " + e; });
 </script>

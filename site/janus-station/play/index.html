@@ -17,6 +17,7 @@
 <a id="back" href="../">← back</a>
 <canvas id="canvas"></canvas>
 <div id="hint">Loading…</div>
+<script src="../../progress.js" data-size="45241871"></script>
 <script src="wasm_exec.js"></script>
 <script>
   // os on js/wasm reads files through Node's fs API. This is its read-only half,
@@ -70,7 +71,7 @@
   const hint = document.getElementById("hint");
   const canvas = document.getElementById("canvas");
   const go = new Go();
-  WebAssembly.instantiateStreaming(fetch("janus.wasm"), go.importObject)
+  WebAssembly.instantiateStreaming(progressFetch("janus.wasm"), go.importObject)
     .then(r => {
       globalThis.__goMem = r.instance.exports.mem; // gl_js.go views Go memory through this
       hint.innerHTML = "Click to start<small>WASD move · mouse look · click shoot · F use · 1-9 weapons · Space jump · Esc releases the mouse</small>";

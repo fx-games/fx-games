@@ -15,10 +15,11 @@
 <body>
 <a id="back" href="../">← back</a>
 <div id="loading">Loading…</div>
+<script src="../../progress.js" data-size="28687314"></script>
 <script src="wasm_exec.js"></script>
 <script>
   const go = new Go();
-  WebAssembly.instantiateStreaming(fetch("marines.wasm"), go.importObject)
+  WebAssembly.instantiateStreaming(progressFetch("marines.wasm"), go.importObject)
     .then(r => {
       // Ebitengine creates its canvas once main() runs; drop the loading text when it appears.
       new MutationObserver((_, o) => {
