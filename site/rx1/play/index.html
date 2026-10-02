@@ -35,6 +35,7 @@
   pre.pane { margin: 0; padding: 2px 4px; font: inherit; font-family: ui-monospace, Menlo, monospace; line-height: 1.3; color: #dcdcdc; white-space: pre; }
   #terminal span, pre.pane span { font-family: inherit; } /* termstyle.css puts Menlo on every element, which beat the chosen font */
   /* every map cell is one cell of the chosen font: a glyph it lacks (☺) comes from a fallback font and must not stretch its cell or row */
+  #terminal { line-height: 1.2; }
   #terminal span.cell { display: inline-block; width: 1ch; height: 1lh; vertical-align: top; }
   /* Inventory hugs the right edge; the i menu (top + left border only) then lands its names exactly on the list */
   #t-inventory pre.pane { width: fit-content; margin-left: auto; }
@@ -181,6 +182,9 @@ const family = n => n ? `"${n}", ${MONO}` : ""
 function applyFonts() {
   document.querySelectorAll("pre.pane").forEach(e => e.style.fontFamily = family(fonts.face))
   term.style.fontFamily = family(fonts.mapFace)
+  // explicit row height: "normal" differs per browser and font (rows came out taller than the glyphs). The DOS and
+  // Easyband bitmap fonts fill their em exactly (8x16 = 0.5em x 1em), so 1 keeps box-drawing lines connected.
+  term.style.lineHeight = /^(Web|Easyband)/.test(fonts.mapFace) ? "1" : "1.2"
   fitMap() // a new map font has other cell sizes
 }
 function loadFace(n) {
