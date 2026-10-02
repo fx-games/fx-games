@@ -144,20 +144,12 @@ function rvipPane(name, html, plain) {
   if (name === "prompt") return RvipWM.prompt.text(plain)
   const pre = document.querySelector(`#t-${name} pre`), body = pre.parentNode
   pre.innerHTML = html
-  fitPane(pre)
   if (name === "messages") body.scrollTop = body.scrollHeight
 }
 // RVIP fixed-size game: every level is 80x23 (config.rec MapWidth/MapHeight), so tcell keeps that one grid and the
 // Map window scales its font to fit it whole, aspect kept, centred; no scrolling, no A-/A+.
 const COLS = 80, ROWS = 23
-// A list pane wider than its window (wide font, narrow window) shrinks its text to fit instead of clipping.
-function fitPane(pre) {
-  pre.style.fontSize = ""
-  const room = pre.parentNode.clientWidth, need = pre.scrollWidth
-  if (need > room && room) pre.style.fontSize = Math.floor(parseFloat(getComputedStyle(pre).fontSize) * room / need * 100) / 100 + "px"
-}
 function fitMap() {
-  document.querySelectorAll("pre.pane").forEach(fitPane)
   if (typeof rvipResize !== "function") return
   rvipResize(COLS, ROWS)
   requestAnimationFrame(() => { // scale from the drawn grid itself: its cells (1ch, line-height normal) are what must fit
