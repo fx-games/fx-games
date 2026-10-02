@@ -7,23 +7,36 @@
 <link rel="stylesheet" href="termstyle.css">
 <style>
   html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px monospace; overflow: hidden; }
-  body { display: flex; align-items: center; justify-content: center; }
-  #terminal { font-size: clamp(10px, min(2vw, 3.6vh), 22px); line-height: normal; color: #ccc; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; height: 22px; display: flex; gap: 12px; align-items: center; padding: 0 12px; font: 12px monospace; color: #888; }
+  #bar button { font: inherit; color: #ccc; background: #22222a; border: 1px solid #2b2b33; border-radius: 3px; cursor: pointer; }
+  #game { position: absolute; left: 0; right: 0; top: 22px; bottom: 0; background: #1d1d23; }
+  .win { position: absolute; display: flex; flex-direction: column; overflow: hidden; background: #000; }
+  .win > .t { flex: none; display: flex; align-items: center; height: 20px; padding: 0 2px 0 6px; font-size: 11px; color: #888; background: #16161a; }
+  .win > .t .name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+  .win > .body { flex: 1; min-height: 0; font-size: 13px; }
+  #t-map > .body { overflow: hidden; font-size: 16px; }
+  #terminal { font-size: inherit; line-height: normal; color: #ccc; margin: 0; }
+  pre.pane { margin: 0; padding: 2px 6px; font: inherit; font-family: monospace; white-space: pre; }
   /* cells are fractional px wide: bleed each background a hair into the next cell so no seams show (text paints after all
      backgrounds of a row, so this never covers glyphs); negative margin keeps the layout */
   #terminal span { padding-right: 0.06em; margin-right: -0.06em; }
   #terminal .cell { display: inline-block; width: 1ch; vertical-align: top; text-align: center; overflow: hidden; }
-  #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; font-family: monospace; }
+  #back { color: #888; text-decoration: none; }
   #back:hover { color: #fff; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-family: monospace; }
-  #hint { position: fixed; bottom: 8px; width: 100%; text-align: center; color: #666; font-family: monospace; font-size: 12px; }
+  #hint { color: #666; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 </style>
 </head>
 <body>
-<a id="back" href="../">← back</a>
-<pre id="terminal"></pre>
+<div id="bar"><a id="back" href="../">← back</a><button id="wins"></button><span id="hint">arrows/numpad/wasd move · i inventory · = key bindings</span></div>
+<div id="game">
+  <div class="win" id="t-map"><div class="t"><span class="name"></span></div><div class="body"><pre id="terminal"></pre></div></div>
+  <div class="win" id="t-messages"><div class="t"><span class="name"></span></div><div class="body"><pre class="pane"></pre></div></div>
+  <div class="win" id="t-inventory"><div class="t"><span class="name"></span></div><div class="body"><pre class="pane"></pre></div></div>
+  <div class="win" id="t-visible"><div class="t"><span class="name"></span></div><div class="body"><pre class="pane"></pre></div></div>
+  <div class="win" id="t-status"><div class="t"><span class="name"></span></div><div class="body"><pre class="pane"></pre></div></div>
+</div>
 <div id="loading">Loading…</div>
-<div id="hint">Click the page if keys don't respond · arrows/numpad/wasd move · i inventory · = key bindings</div>
 <script>
 // Minimal in-memory filesystem for Go's syscall/js (Go embeds data_rx1 and fills it via __fsPut; saves live in memory).
 (() => {
@@ -42,7 +55,7 @@
   globalThis.path = { resolve: (...a) => norm(a.join("/")) };
   globalThis.process = { pid: 1, ppid: 0, cwd: () => "/", chdir() {}, umask: () => 0o22,
     getuid: () => -1, getgid: () => -1, geteuid: () => -1, getegid: () => -1, getgroups() { throw err("ENOSYS"); } };
-  const C = { O_WRONLY: 1, O_RDWR: 2, O_CREAT: 64, O_TRUNC: 512, O_APPEND: 1024, O_EXCL: 128, O_DIRECTORY: -1 };
+  const C = { O_WRONLY: 1, O_RDWR: 2, O_CREAT: 64, O_TRUNC: 512, O_APPEND: 1024, O_EXCL: 128, O_DIRECTORY: 65536 } // -1 makes Go refuse every directory open (os.ReadDir);
   const write = (fd, buf, off, len, pos) => {
     if (fd === 1 || fd === 2) {
       out += new TextDecoder().decode(buf.subarray(off, off + len));
@@ -101,7 +114,40 @@
   globalThis.fs = ops;
 })();
 </script>
-<script src="../../progress.js" data-size="8571098"></script>
+<script src="../../progress.js" data-size="9004067"></script>
+<script src="rvip-wm.js"></script>
+<script>
+// RVIP-WM windows. Go (startup_js.go) sees rvipPane and sends every side window here instead of drawing it in the
+// terminal; the terminal is only the map, and rvipResize gives it as many cells as its window holds.
+function rvipPane(name, html, plain) {
+  if (name === "prompt") return RvipWM.prompt.text(plain)
+  const pre = document.querySelector(`#t-${name} pre`), body = pre.parentNode
+  pre.innerHTML = html
+  if (name === "messages") body.scrollTop = body.scrollHeight
+}
+function fitMap() { // tcell's grid = what fits the Map window at its font size; tcell.js reads the cell size for mouse clicks
+  if (typeof rvipResize !== "function") return
+  const body = term.parentNode, probe = document.createElement("span")
+  probe.textContent = "MMMMMMMMMM"; probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;line-height:normal"
+  term.appendChild(probe)
+  const b = probe.getBoundingClientRect(); probe.remove()
+  fontwidth = b.width / 10; fontheight = b.height
+  // ponytail: below 20x8 cells the map stops shrinking and its window clips; menus wider than the window are clipped too
+  rvipResize(Math.max(20, Math.floor(body.clientWidth / fontwidth)), Math.max(8, Math.floor(body.clientHeight / fontheight)))
+}
+// layout lives in IndexedDB (RVIP: no localStorage)
+const idb = new Promise(ok => { const q = indexedDB.open("rx1", 1); q.onupgradeneeded = () => q.result.createObjectStore("kv"); q.onsuccess = () => ok(q.result); q.onerror = () => ok(null) })
+const kv = (mode, f) => idb.then(db => db && new Promise(ok => { const q = f(db.transaction("kv", mode).objectStore("kv")); q.onsuccess = () => ok(q.result); q.onerror = () => ok(null) }))
+const wmReady = kv("readonly", s => s.get("layout")).then(state => RvipWM({
+  area: document.getElementById("game"), menu: document.getElementById("wins"),
+  wins: [{ id: "map", title: "Map" }, { id: "messages", title: "Messages" }, { id: "inventory", title: "Inventory" },
+         { id: "visible", title: "Visible" }, { id: "status", title: "Status" }],
+  multi: { d: "v", r: 0.9, a: { d: "h", r: 0.72, a: { d: "v", r: 0.15, a: "messages", b: "map" }, b: { d: "v", r: 0.6, a: "inventory", b: "visible" } }, b: "status" },
+  single: "map",
+  state, save: st => kv("readwrite", s => s.put(st, "layout")),
+  layout: fitMap, zoom: { map: fitMap },
+}))
+</script>
 <script src="wasm_exec.js"></script>
 <script>var onKeyEvent, onMouseClick, onMouseMove, onFocus, onPaste; onKeyEvent = onMouseClick = onMouseMove = onFocus = onPaste = () => {}; // replaced by Go once running</script>
 <script src="tcell.js"></script>
@@ -128,15 +174,16 @@ function fixWidth(x, y) {
   if (!el.style) { const span = document.createElement("span"); span.appendChild(el); el = content.data[y].data[x] = span }
   el.classList.add("cell")
 }
-drawCell = function (x, y, c, comb, fg, bg, attrs) {
-  const half = { 0x2580: "bottom", 0x2584: "top" }[c] // gradient direction: the "on" colour starts at the far side
-  if (c !== 0x2588 && !half) {
-    drawGlyph(x, y, c, comb, fg, bg, attrs)
+drawCell = function (x, y, c, ...rest) { // tcell v2 passes (rune, comb, fg, bg, attrs), v3 (string, fg, bg, attrs, us, uc)
+  const cp = typeof c === "string" ? c.codePointAt(0) : c, space = typeof c === "string" ? " " : 32
+  const half = { 0x2580: "bottom", 0x2584: "top" }[cp] // gradient direction: the "on" colour starts at the far side
+  if (cp !== 0x2588 && !half) {
+    drawGlyph(x, y, c, ...rest)
     return fixWidth(x, y)
   }
-  drawGlyph(x, y, 32, comb, fg, bg, attrs)
+  drawGlyph(x, y, space, ...rest)
   const el = content.data[y].data[x]
-  if (!el.style || !el.style.color) { drawGlyph(x, y, c, comb, fg, bg, attrs); return fixWidth(x, y) } // default colours: keep the glyph
+  if (!el.style || !el.style.color) { drawGlyph(x, y, c, ...rest); return fixWidth(x, y) } // default colours: keep the glyph
   const on = el.style.color, off = el.style.backgroundColor || "transparent"
   el.style.background = !half ? on : `linear-gradient(to ${half}, ${on} 50%, ${off} 50%)`
   fixWidth(x, y)
@@ -145,7 +192,7 @@ drawCell = function (x, y, c, comb, fg, bg, attrs) {
 <script>
   const go = new Go();
   WebAssembly.instantiateStreaming(progressFetch("rx1.wasm"), go.importObject)
-    .then(r => { document.getElementById("loading").remove(); go.run(r.instance); })
+    .then(r => { document.getElementById("loading").remove(); go.run(r.instance); wmReady.then(fitMap) })
     .catch(e => { document.getElementById("loading").textContent = "Failed to load: " + e; console.error(e); });
 </script>
 </body>
