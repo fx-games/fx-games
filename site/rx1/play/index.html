@@ -32,7 +32,7 @@
   .win > .body { flex: 1; min-height: 0; overflow: hidden; font-size: 13px; }
   pre.pane { margin: 0; padding: 2px 4px; font: inherit; font-family: ui-monospace, Menlo, monospace; line-height: 1.3; color: #dcdcdc; white-space: pre; }
   /* rx1: the map window is tcell's DOM terminal */
-  #t-map > .body { font-size: 16px; }
+  #t-map > .body { display: flex; align-items: center; justify-content: center; }
   #terminal { font-size: inherit; line-height: normal; color: #ccc; margin: 0; }
   /* cells are fractional px wide: bleed each background a hair into the next cell so no seams show (text paints after all
      backgrounds of a row, so this never covers glyphs); negative margin keeps the layout */
@@ -132,22 +132,26 @@
 <script src="rvip-wm.js"></script>
 <script>
 // RVIP-WM windows. Go (startup_js.go) sees rvipPane and sends every side window here instead of drawing it in the
-// terminal; the terminal is only the map, and rvipResize gives it as many cells as its window holds.
+// terminal; the terminal is only the map (fixed grid, see fitMap).
 function rvipPane(name, html, plain) {
   if (name === "prompt") return RvipWM.prompt.text(plain)
   const pre = document.querySelector(`#t-${name} pre`), body = pre.parentNode
   pre.innerHTML = html
   if (name === "messages") body.scrollTop = body.scrollHeight
 }
-function fitMap() { // tcell's grid = what fits the Map window at its font size; tcell.js reads the cell size for mouse clicks
+// RVIP fixed-size game: every level is 80x23 (config.rec MapWidth/MapHeight), so tcell keeps that one grid and the
+// Map window scales its font to fit it whole, aspect kept, centred; no scrolling, no A-/A+.
+const COLS = 80, ROWS = 23
+function fitMap() { // tcell.js reads fontwidth/fontheight for mouse clicks
   if (typeof rvipResize !== "function") return
-  const body = term.parentNode, probe = document.createElement("span")
-  probe.textContent = "MMMMMMMMMM"; probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;line-height:normal"
-  term.appendChild(probe)
-  const b = probe.getBoundingClientRect(); probe.remove()
-  fontwidth = b.width / 10; fontheight = b.height
-  // ponytail: below 20x8 cells the map stops shrinking and its window clips; menus wider than the window are clipped too
-  rvipResize(Math.max(20, Math.floor(body.clientWidth / fontwidth)), Math.max(8, Math.floor(body.clientHeight / fontheight)))
+  rvipResize(COLS, ROWS)
+  requestAnimationFrame(() => { // scale from the drawn grid itself: its cells (1ch, line-height normal) are what must fit
+    const body = term.parentNode, w = term.offsetWidth, h = term.offsetHeight
+    if (!w || !h) return
+    const px = parseFloat(getComputedStyle(term).fontSize) * Math.min(body.clientWidth / w, body.clientHeight / h) * 0.998 // a hair under: subpixel cells must not overflow
+    term.style.fontSize = Math.floor(px * 100) / 100 + "px"
+    fontwidth = term.offsetWidth / COLS; fontheight = term.offsetHeight / ROWS
+  })
 }
 // layout lives in IndexedDB (RVIP: no localStorage)
 const idb = new Promise(ok => { const q = indexedDB.open("rx1", 1); q.onupgradeneeded = () => q.result.createObjectStore("kv"); q.onsuccess = () => ok(q.result); q.onerror = () => ok(null) })
@@ -159,7 +163,7 @@ const wmReady = kv("readonly", s => s.get("layout")).then(state => RvipWM({
   multi: { d: "v", r: 0.9, a: { d: "h", r: 0.72, a: { d: "v", r: 0.15, a: "messages", b: "map" }, b: { d: "v", r: 0.6, a: "inventory", b: "visible" } }, b: "status" },
   single: "map",
   state, save: st => kv("readwrite", s => s.put(st, "layout")),
-  layout: fitMap, zoom: { map: fitMap },
+  layout: fitMap, noFont: "map",
 }))
 </script>
 <script src="wasm_exec.js"></script>
