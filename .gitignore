@@ -4,3 +4,4 @@
 *.wasm
 *.wasm.gz
 wasm_exec.js
+site/rx1/play/fonts/
