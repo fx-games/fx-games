@@ -33,6 +33,7 @@
   .win > .t .name:hover { color: var(--text); }
   .win > .body { flex: 1; min-height: 0; overflow: hidden; font-size: 13px; }
   pre.pane { margin: 0; padding: 2px 4px; font: inherit; font-family: ui-monospace, Menlo, monospace; line-height: 1.3; color: #dcdcdc; white-space: pre; }
+  #terminal span, pre.pane span { font-family: inherit; } /* termstyle.css puts Menlo on every element, which beat the chosen font */
   /* Inventory hugs the right edge; the i menu (top + left border only) then lands its names exactly on the list */
   #t-inventory pre.pane { width: fit-content; margin-left: auto; }
   /* rx1: the map window is tcell's DOM terminal */
