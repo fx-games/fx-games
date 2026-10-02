@@ -42,7 +42,7 @@
   /* every map cell is one cell of the map font (--cw x --rh, measured in applyFonts): a glyph the font lacks comes from a
      fallback font and must not stretch its cell or row. Cells are fractional px wide, so each background bleeds a hair
      into the next cell to hide seams; content-box + the negative margin keep the pitch at exactly --cw. */
-  #terminal .cell { display: inline-block; box-sizing: content-box; width: var(--cw, 1ch); height: var(--rh, 1lh); vertical-align: top;
+  #terminal .cell, pre.pane .cell { display: inline-block; box-sizing: content-box; width: var(--cw, 1ch); height: var(--rh, 1lh); vertical-align: top;
     text-align: center; overflow: hidden; padding-right: 0.06em; margin-right: -0.06em; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-family: monospace; }
 </style>
@@ -143,6 +143,17 @@ function rvipPane(name, html, plain) {
   if (name === "prompt") return RvipWM.prompt.text(plain)
   const pre = document.querySelector(`#t-${name} pre`), body = pre.parentNode
   pre.innerHTML = html
+  // one .cell per character, as on the map: the list font's own cell, also for glyphs it lacks or proportional fonts
+  const tw = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT), texts = []
+  while (tw.nextNode()) texts.push(tw.currentNode)
+  for (const t of texts) {
+    const f = document.createDocumentFragment()
+    for (const ch of t.data) {
+      if (ch === "\n") { f.append(ch); continue }
+      const c = document.createElement("span"); c.className = "cell"; c.textContent = ch; f.append(c)
+    }
+    t.replaceWith(f)
+  }
   if (name === "messages") body.scrollTop = body.scrollHeight
 }
 // RVIP fixed-size game: every level is 80x23 (config.rec MapWidth/MapHeight), so tcell keeps that one grid and the
@@ -177,17 +188,18 @@ mapSel.title = "Map font"; mapSel.innerHTML = '<option value="">Default font</op
 mapSel.addEventListener("pointerdown", e => e.stopPropagation()) // not a window drag
 const fonts = { face: "", mapFace: "" }
 const family = n => n ? `"${n}", ${MONO}` : ""
-function applyFonts() {
-  document.querySelectorAll("pre.pane").forEach(e => e.style.fontFamily = family(fonts.face))
-  term.style.fontFamily = family(fonts.mapFace)
-  // Map cell = the map font's own cell, measured (not ch/lh/"normal", which differ per browser): column = advance of
-  // "0", row = the font's ascent + descent, both in em. VGA 8x16 gives 0.5 x 1, EGA 9x14 0.643 x 1, Plex 0.6 x 1.3.
+// Cell of a font, measured (not ch/lh/"normal", which differ per browser): column = advance of "0", row = the font's
+// ascent + descent, both in em. VGA 8x16 gives 0.5 x 1, EGA 9x14 0.643 x 1, Plex 0.6 x 1.3.
+function setCell(el, face) {
+  el.style.fontFamily = family(face)
   const cv = document.createElement("canvas").getContext("2d")
-  cv.font = `100px ${family(fonts.mapFace) || MONO}`
-  const m = cv.measureText("0")
-  term.style.setProperty("--cw", m.width / 100 + "em")
-  const rh = (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) / 100
-  term.style.lineHeight = rh; term.style.setProperty("--rh", rh + "em")
+  cv.font = `100px ${family(face) || MONO}`
+  const m = cv.measureText("0"), rh = (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) / 100
+  el.style.setProperty("--cw", m.width / 100 + "em"); el.style.setProperty("--rh", rh + "em"); el.style.lineHeight = rh
+}
+function applyFonts() {
+  document.querySelectorAll("pre.pane").forEach(e => setCell(e, fonts.face))
+  setCell(term, fonts.mapFace)
   fitMap() // a new map font has other cell sizes
 }
 function loadFace(n) {
