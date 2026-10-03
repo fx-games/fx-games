@@ -275,3 +275,8 @@ document.addEventListener("paste", (e) => {
   onPaste(false);
 });
 
+term.addEventListener("wheel", (e) => {
+  if (typeof rxWheel !== "function" || e.deltaY === 0) return;
+  e.preventDefault();
+  rxWheel(Math.min((e.offsetX / fontwidth) | 0, width - 1), Math.min((e.offsetY / fontheight) | 0, height - 1), e.deltaY);
+}, { passive: false });

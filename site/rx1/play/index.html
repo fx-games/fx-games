@@ -48,6 +48,27 @@
     text-align: center; overflow: hidden; padding-right: 0.06em; margin-right: -0.06em; }
   /* a glyph the font lacks, drawn smaller (fitGlyph) so the fallback font's wider glyph fits the cell; middle of the row */
   #terminal .cell.fb, pre.pane .cell.fb { line-height: var(--rh); }
+  /* Visible window, Images on: one card per monster, the picture first (monster-manual plate), then name and health */
+  #t-visible .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5em, 1fr)); grid-auto-rows: max-content; gap: .6em; padding: .6em;
+    height: 100%; overflow-y: auto; align-content: start; font-family: var(--face, ui-monospace, Menlo, monospace); }
+  #t-visible .card { display: flex; flex-direction: column; background: #121216; border: 1px solid var(--line); border-radius: .5em; overflow: hidden;
+    box-shadow: 0 .2em .6em #0008; animation: card-in .25s ease-out; }
+  @keyframes card-in { from { opacity: 0; transform: translateY(.4em) } }
+  #t-visible .plate { position: relative; flex: none; aspect-ratio: 1; background: radial-gradient(circle at 50% 40%, #f3ead2, #cdbf98); display: grid; place-items: center; }
+  #t-visible .plate img { width: 92%; height: 92%; object-fit: contain; mix-blend-mode: multiply; } /* white line-art paper turns parchment */
+  #t-visible .plate.none { background: radial-gradient(circle at 50% 40%, #26262e, #0d0d10); }
+  #t-visible .plate.none .glyph { font-size: 4em; line-height: 1; text-shadow: 0 0 .3em currentColor; }
+  #t-visible .badge { position: absolute; left: .3em; top: .3em; min-width: 1.5em; height: 1.5em; display: grid; place-items: center;
+    border-radius: .3em; background: #000c; font-weight: 700; }
+  #t-visible .state { position: absolute; right: .3em; top: .3em; padding: 0 .35em; height: 1.5em; line-height: 1.5em; border-radius: .3em;
+    background: #000c; color: #aab; font-size: .85em; }
+  #t-visible .cap { padding: .35em .5em .45em; }
+  #t-visible .cap .nm { color: #e6e6ea; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #t-visible .cap .nm::first-letter { text-transform: uppercase; }
+  #t-visible .hp { height: .35em; margin-top: .3em; background: #2a2a32; border-radius: .2em; overflow: hidden; }
+  #t-visible .hp > i { display: block; height: 100%; border-radius: .2em; transition: width .3s; }
+  #t-visible .empty { color: var(--dim); padding: 1em; grid-column: 1 / -1; text-align: center; }
+  .win > .t .wm-btns label { display: flex; align-items: center; gap: 2px; margin-right: 4px; cursor: pointer; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-family: monospace; }
 </style>
 </head>
@@ -135,17 +156,38 @@
     chown(p, u, g, cb) { cb(null); }, fchown(fd, u, g, cb) { cb(null); }, lchown(p, u, g, cb) { cb(null); },
     link(a, b, cb) { cb(err("ENOSYS")); }, symlink(a, b, cb) { cb(err("ENOSYS")); }, readlink(p, cb) { cb(err("EINVAL")); },
   };
+  // Saves (/save.rx1 and its .bak) are mirrored to IndexedDB; one transaction per snapshot, so the pair stays consistent.
+  const keep = p => p.startsWith("/save.rx1") && !p.endsWith(".tmp");
+  const idb = new Promise(ok => { const r = indexedDB.open("rx1-saves", 1); r.onupgradeneeded = () => r.result.createObjectStore("files"); r.onsuccess = () => ok(r.result); r.onerror = () => ok(null); });
+  const persist = () => idb.then(db => {
+    if (!db) return;
+    const store = db.transaction("files", "readwrite").objectStore("files");
+    store.clear();
+    for (const [p, data] of files) if (keep(p)) store.put(data, p);
+  }).catch(e => console.warn("save not persisted", e));
+  for (const k of ["close", "rename", "unlink"]) { // Go closes the file after writing it, and renames it into place
+    const f = ops[k];
+    ops[k] = (...a) => { const cb = a.pop(), p = k === "close" ? fds.get(a[0])?.p : norm(a[0]); f(...a, (...r) => { if (p && (keep(p) || k === "rename" && keep(norm(a[1])))) persist(); cb(...r); }); };
+  }
+  // resolves once the saved files are back in the in-memory fs, before Go starts
+  globalThis.__fsRestored = idb.then(db => db && new Promise(ok => { // never blocks the game: no storage just means no saves
+    const r = db.transaction("files").objectStore("files").openCursor();
+    r.onsuccess = () => { const c = r.result; if (c) { files.set(c.key, c.value); c.continue(); } else ok(); };
+    r.onerror = () => ok();
+  })).catch(e => console.warn("saves not restored", e));
   globalThis.fs = ops;
 })();
 </script>
-<script src="../../progress.js" data-size="9004067"></script>
+<script src="../../progress.js" data-size="9865681"></script>
 <script src="rvip-wm.js"></script>
 <script>
 // RVIP-WM windows. Go (startup_js.go) sees rvipPane and sends every side window here instead of drawing it in the
 // terminal; the terminal is only the map (fixed grid, see fitMap).
 function rvipPane(name, html, plain) {
   if (name === "prompt") return RvipWM.prompt.text(plain)
+  if (name === "visible") { visibleHTML = html; if (images.on) return drawCards() }
   const pre = document.querySelector(`#t-${name} pre`), body = pre.parentNode
+  pre.hidden = false; body.querySelector(".cards")?.remove()
   pre.innerHTML = html
   // one .cell per character, as on the map: the list font's own cell, also for glyphs it lacks or proportional fonts
   const tw = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT), texts = []
@@ -236,6 +278,53 @@ kv("readonly", s => s.get("fonts")).then(f => {
   Object.assign(fonts, f); fontSel.value = fonts.face; mapSel.value = fonts.mapFace
   loadFace(fonts.face); loadFace(fonts.mapFace)
 })
+// Visible window, Images on: each line " X [*****] name" (controller.go UpdateVisibleEnemies) becomes a card with the
+// monster's picture, monsters/<name>.png (build_web.sh copies rx1/web/monsters); without one the glyph is the picture.
+let visibleHTML = ""
+const images = { on: false }
+function drawCards() {
+  const body = document.querySelector("#t-visible .body"), pre = body.querySelector("pre")
+  let box = body.querySelector(".cards")
+  if (!box) { box = document.createElement("div"); box.className = "cards"; body.append(box) }
+  pre.hidden = true
+  box.style.setProperty("--face", family(fonts.face))
+  const tmp = document.createElement("div"), cards = []
+  for (const line of visibleHTML.split("\n")) {
+    tmp.innerHTML = line
+    const chars = [] // [char, colour] for every character of the line
+    for (const sp of tmp.children) for (const ch of sp.textContent) chars.push([ch, sp.style.color])
+    const text = chars.map(c => c[0]).join(""), m = text.match(/^ (.) \[(.{5})\] (.+)$/u)
+    if (!m) continue
+    const [, glyph, bar, nm] = m, filled = bar.replace(/ /g, "").length, mark = bar.trim()[0] || "*"
+    const state = { z: "asleep", Z: "asleep", "?": "unaware" }[mark] || ""
+    const c = document.createElement("div"); c.className = "card"; c.title = nm
+    c.innerHTML = `<div class="plate"><img alt=""><span class="badge"></span>${state ? `<span class="state">${state}</span>` : ""}</div>
+      <div class="cap"><div class="nm"></div><div class="hp"><i></i></div></div>`
+    const plate = c.querySelector(".plate"), img = c.querySelector("img"), badge = c.querySelector(".badge")
+    badge.textContent = glyph; badge.style.color = chars[1][1]
+    c.querySelector(".nm").textContent = nm
+    Object.assign(c.querySelector(".hp > i").style, { width: filled * 20 + "%", background: chars[4]?.[1] || "#5c5" })
+    img.onerror = () => { img.remove(); badge.remove(); plate.classList.add("none")
+      const g = document.createElement("span"); g.className = "glyph"; g.textContent = glyph; g.style.color = chars[1][1]; plate.append(g) }
+    img.src = "monsters/" + nm.toLowerCase().replace(/ /g, "_") + ".png"
+    cards.push(c)
+  }
+  if (!cards.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "No monsters in view"; cards.push(e) }
+  box.replaceChildren(...cards)
+}
+function setImages(on) {
+  images.on = on; kv("readwrite", s => s.put(on, "images"))
+  if (on) drawCards(); else rvipPane("visible", visibleHTML, "")
+}
+wmReady.then(async () => {
+  const l = document.createElement("label"), cb = document.createElement("input")
+  l.title = "Show the visible monsters as picture cards"; cb.type = "checkbox"
+  l.append(cb, "Images"); l.addEventListener("pointerdown", e => e.stopPropagation()) // not a window drag
+  cb.checked = images.on = !!(await kv("readonly", s => s.get("images")))
+  cb.onchange = () => { setImages(cb.checked); cb.blur() }
+  document.querySelector("#t-visible .wm-btns").prepend(l)
+  if (images.on) drawCards()
+})
 </script>
 <script src="wasm_exec.js"></script>
 <script>var onKeyEvent, onMouseClick, onMouseMove, onFocus, onPaste; onKeyEvent = onMouseClick = onMouseMove = onFocus = onPaste = () => {}; // replaced by Go once running</script>
@@ -290,7 +379,7 @@ drawCell = function (x, y, c, ...rest) { // tcell v2 passes (rune, comb, fg, bg,
 <script>
   const go = new Go();
   WebAssembly.instantiateStreaming(progressFetch("rx1.wasm"), go.importObject)
-    .then(r => { document.getElementById("loading").remove(); go.run(r.instance); wmReady.then(fitMap) })
+    .then(async r => { await __fsRestored; document.getElementById("loading").remove(); go.run(r.instance); wmReady.then(fitMap) })
     .catch(e => { document.getElementById("loading").textContent = "Failed to load: " + e; console.error(e); });
 </script>
 </body>
