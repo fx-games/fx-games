@@ -94,7 +94,7 @@
 </style>
 </head>
 <body>
-<div id="bar"><h1><a href="../" title="All games">&lt;</a> RX1</h1><button id="wins"></button><select id="sel-font" title="Font for the list windows (the map has its own on its title bar)"><option value="">Font: default</option></select><span class="hint"><kbd>arrows</kbd> <kbd>numpad</kbd> <kbd>wasd</kbd> move · <kbd>i</kbd> inventory · <kbd>=</kbd> key bindings</span></div>
+<div id="bar"><h1><a href="../" title="All games">&lt;</a> RX1</h1><button id="wins"></button><select id="sel-font" title="Font for the list windows (the map has its own on its title bar)"><option value="">Font: default</option></select><button id="map-scroll" title="Map scroll: the map keeps its tile size (− / + on its title bar) and scrolls with the player">☐ Map scroll</button><span class="hint"><kbd>arrows</kbd> <kbd>numpad</kbd> <kbd>wasd</kbd> move · <kbd>i</kbd> inventory · <kbd>=</kbd> key bindings</span></div>
 <div id="game">
   <div class="win" id="t-map"><div class="t"><span class="name"></span></div><div class="body"><pre id="terminal"></pre></div></div>
   <div class="win" id="t-messages"><div class="t"><span class="name"></span></div><div class="body"><pre class="pane"></pre></div></div>
@@ -199,13 +199,14 @@
   globalThis.fs = ops;
 })();
 </script>
-<script src="../../progress.js" data-size="10064602"></script>
+<script src="../../progress.js" data-size="10069589"></script>
 <script src="rvip-wm.js"></script>
 <script>
 // RVIP-WM windows. Go (startup_js.go) sees rvipPane and sends every side window here instead of drawing it in the
 // terminal; the terminal is only the map (fixed grid, see fitMap).
 function rvipPane(name, html, plain) {
   if (name === "prompt") return RvipWM.prompt.text(plain)
+  if (name === "tiles") { tiles = plain.trim() === "on"; return applyFonts() } // the theme's tiles mode (controller.go setTheme)
   if (/^(sheet|lore)\d+$/.test(name)) { info[name] = html; return drawDetail() }
   if (name === "visible") { visibleHTML = html; drawDetail(); if (images.on) return drawCards() }
   const pre = document.querySelector(`#t-${name} pre`), body = pre.parentNode
@@ -226,9 +227,17 @@ function rvipPane(name, html, plain) {
 }
 // RVIP fixed-size game: every level is 80x23 (config.rec MapWidth/MapHeight), so tcell keeps that one grid and the
 // Map window scales its font to fit it whole, aspect kept, centred; no scrolling, no A-/A+.
-const COLS = 80, ROWS = 23
+// Map scroll (top bar) instead: the cells keep their height (scroll.rh px, − / + on the map's title bar) and the
+// grid is what fits the window; the game scrolls the map in it (console drawMap).
+const COLS = 80, ROWS = 23, scroll = { on: false, rh: 24 }
 function fitMap() {
   if (typeof rvipResize !== "function") return
+  if (scroll.on) {
+    const body = term.parentNode, em = v => parseFloat(term.style.getPropertyValue(v)) || 1
+    const px = scroll.rh / em("--rh")
+    term.style.fontSize = px + "px"
+    return rvipResize(Math.max(1, Math.floor(body.clientWidth / (px * em("--cw")))), Math.max(1, Math.floor(body.clientHeight / scroll.rh)))
+  }
   rvipResize(COLS, ROWS)
   requestAnimationFrame(() => { // scale from the drawn grid itself: its cells (1ch, line-height normal) are what must fit
     const body = term.parentNode, w = term.offsetWidth, h = term.offsetHeight
@@ -255,7 +264,13 @@ const MONO = 'ui-monospace, Menlo, Unifont, monospace', fontSel = document.getEl
 mapSel.title = "Map font"; mapSel.innerHTML = '<option value="">Default font</option>'
 mapSel.addEventListener("pointerdown", e => e.stopPropagation()) // not a window drag
 const fonts = { face: "", mapFace: "" }
-const family = n => n ? `"${n}", Unifont, monospace` : MONO // a glyph the font lacks always comes from Unifont
+// A glyph the font lacks comes from Unifont, a tile rune (U+E000+, a tiles theme) from the tile font (fonts/Oryx_Tiles.woff,
+// rx1 data_rx1/tiles/mkoryx.py); in tiles mode the map's font is the tile font itself, its cell measured on a tile.
+const TILES = "Oryx_Tiles"
+let tiles = false
+// in tiles mode the map's text (menus, borders) comes from the map font
+const family = n => n === TILES ? `"${TILES}", ${fonts.mapFace ? `"${fonts.mapFace}"` : MONO}, Unifont, monospace` : n ? `"${n}", Unifont, "${TILES}", monospace` : MONO + `, "${TILES}"`
+const probe = face => face === TILES ? "\uE000" : "0" // the character a cell is measured on
 // Cell of a font, measured (not ch/lh/"normal", which differ per browser): column = advance of "0", row = the font's
 // ascent + descent, both in em. VGA 8x16 gives 0.5 x 1, EGA 9x14 0.643 x 1, Plex 0.6 x 1.3.
 const cv = document.createElement("canvas").getContext("2d"), advances = new Map()
@@ -266,21 +281,21 @@ function advance(ch, face) { // in em, of whichever font draws ch (face or a fal
 }
 // A glyph wider than its cell (from a fallback font: fancy's gold is braille, no DOS font has it) is drawn smaller to fit.
 function fitGlyph(el, ch, face) {
-  const k = advance("0", face) / advance(ch, face), small = k < 0.98
+  const k = advance(probe(face), face) / advance(ch, face), small = k < 0.98
   el.style.fontSize = small ? k + "em" : ""
   el.classList.toggle("fb", small)
 }
 function setCell(el, face) {
   el.style.fontFamily = family(face)
   cv.font = `100px ${family(face)}`
-  const m = cv.measureText("0"), rh = (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) / 100
+  const m = cv.measureText(probe(face)), rh = (m.fontBoundingBoxAscent + m.fontBoundingBoxDescent) / 100
   el.style.setProperty("--cw", m.width / 100 + "em"); el.style.setProperty("--rh", rh + "em"); el.style.lineHeight = rh
   el.querySelectorAll(".cell").forEach(c => fitGlyph(c, c.textContent, face))
 }
 function applyFonts() {
   advances.clear() // measured before a font had loaded
   document.querySelectorAll("pre.pane").forEach(e => setCell(e, fonts.face))
-  setCell(term, fonts.mapFace)
+  setCell(term, tiles ? TILES : fonts.mapFace)
   fitMap() // a new map font has other cell sizes
 }
 function loadFace(n) {
@@ -293,8 +308,27 @@ for (const [sel, key] of [[fontSel, "face"], [mapSel, "mapFace"]]) {
   sel.onchange = () => { fonts[key] = sel.value; kv("readwrite", s => s.put(fonts, "fonts")); loadFace(sel.value); sel.blur() }
 }
 wmReady.then(() => document.querySelector("#t-map .wm-btns").prepend(mapSel))
+const scrollBtn = document.getElementById("map-scroll"), zoomBtns = ["−", "+"].map((t, i) => {
+  const b = document.createElement("button"); b.textContent = t; b.title = i ? "Bigger tiles" : "Smaller tiles"
+  b.addEventListener("pointerdown", e => e.stopPropagation()) // not a window drag
+  b.onclick = () => { scroll.rh = Math.max(8, Math.min(96, scroll.rh + (i ? 4 : -4))); applyScroll() }
+  return b
+})
+function applyScroll() {
+  scrollBtn.textContent = (scroll.on ? "☑" : "☐") + " Map scroll"
+  zoomBtns.forEach(b => b.hidden = !scroll.on)
+  kv("readwrite", s => s.put({ ...scroll }, "mapScroll"))
+  fitMap()
+}
+scrollBtn.onclick = () => { scroll.on = !scroll.on; scrollBtn.blur(); applyScroll() }
+Promise.all([wmReady, kv("readonly", s => s.get("mapScroll"))]).then(([, st]) => {
+  Object.assign(scroll, st || {})
+  mapSel.after(...zoomBtns)
+  applyScroll()
+})
 // The one fallback font: GNU Unifont 15.1 (OFL 1.1), subset to symbols, box drawing, blocks, dingbats, braille.
 new FontFace("Unifont", "url(unifont-symbols.woff)").load().then(f => { document.fonts.add(f); applyFonts() }, e => console.error("font Unifont", e))
+new FontFace(TILES, `url(fonts/${TILES}.woff)`).load().then(f => { document.fonts.add(f); applyFonts() }, e => console.error("font tiles", e))
 kv("readonly", s => s.get("fonts")).then(f => {
   if (!f) return applyFonts()
   Object.assign(fonts, f); fontSel.value = fonts.face; mapSel.value = fonts.mapFace
