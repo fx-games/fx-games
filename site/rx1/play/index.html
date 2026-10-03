@@ -69,6 +69,27 @@
   #t-visible .hp > i { display: block; height: 100%; border-radius: .2em; transition: width .3s; }
   #t-visible .empty { color: var(--dim); padding: 1em; grid-column: 1 / -1; text-align: center; }
   .win > .t .wm-btns label { display: flex; align-items: center; gap: 2px; margin-right: 4px; cursor: pointer; }
+  /* Visible window: a clicked monster's sheet and lore, over the list (which keeps updating underneath) */
+  #t-visible .body { position: relative; }
+  #t-visible pre.pane { cursor: pointer; }
+  #t-visible .card { cursor: pointer; }
+  #t-visible .card:hover { border-color: var(--accent); }
+  #t-visible .detail { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; background: #0b0b0d;
+    font-family: var(--face, ui-monospace, Menlo, monospace); }
+  #t-visible .detail .head { flex: none; display: flex; align-items: center; gap: .6em; padding: .4em .6em; border-bottom: 1px solid var(--line); }
+  #t-visible .detail .back { color: var(--dim); text-decoration: none; font-size: .9em; }
+  #t-visible .detail .back:hover { color: var(--accent); }
+  #t-visible .detail .who { flex: 1; color: #e6e6ea; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #t-visible .detail .who::first-letter { text-transform: uppercase; }
+  #t-visible .detail .tabs { display: flex; gap: .2em; }
+  #t-visible .detail .tabs button { font-size: .85em; padding: .1em .7em; border-radius: .3em .3em 0 0; }
+  #t-visible .detail .tabs button.on { color: var(--accent); border-color: var(--accent); }
+  #t-visible .detail .page { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: .8em; padding: .6em; }
+  /* the picture, big: a parchment plate as on the cards, the whole width of the window up to 28em */
+  #t-visible .detail .plate { flex: none; align-self: center; width: 100%; max-width: 28em; aspect-ratio: auto; padding: .8em; border-radius: .5em;
+    border: 1px solid var(--line); box-shadow: 0 .2em .6em #0008; }
+  #t-visible .detail .plate img { display: block; width: 100%; height: auto; max-height: 70vh; object-fit: contain; }
+  #t-visible .detail .page pre { flex: 1; min-width: 0; margin: 0; font: inherit; line-height: 1.35; color: #dcdcdc; white-space: pre-wrap; }
   #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; font-family: monospace; }
 </style>
 </head>
@@ -178,14 +199,15 @@
   globalThis.fs = ops;
 })();
 </script>
-<script src="../../progress.js" data-size="10062130"></script>
+<script src="../../progress.js" data-size="10063889"></script>
 <script src="rvip-wm.js"></script>
 <script>
 // RVIP-WM windows. Go (startup_js.go) sees rvipPane and sends every side window here instead of drawing it in the
 // terminal; the terminal is only the map (fixed grid, see fitMap).
 function rvipPane(name, html, plain) {
   if (name === "prompt") return RvipWM.prompt.text(plain)
-  if (name === "visible") { visibleHTML = html; if (images.on) return drawCards() }
+  if (/^(sheet|lore)\d+$/.test(name)) { info[name] = html; return drawDetail() }
+  if (name === "visible") { visibleHTML = html; drawDetail(); if (images.on) return drawCards() }
   const pre = document.querySelector(`#t-${name} pre`), body = pre.parentNode
   pre.hidden = false; body.querySelector(".cards")?.remove()
   pre.innerHTML = html
@@ -307,14 +329,54 @@ function drawCards() {
     img.onerror = () => { img.remove(); badge.remove(); plate.classList.add("none")
       const g = document.createElement("span"); g.className = "glyph"; g.textContent = glyph; g.style.color = chars[1][1]; plate.append(g) }
     img.src = "monsters/" + nm.toLowerCase().replace(/ /g, "_") + ".png"
+    const i = cards.length; c.onclick = () => openDetail(i)
     cards.push(c)
   }
   if (!cards.length) { const e = document.createElement("div"); e.className = "empty"; e.textContent = "No monsters in view"; cards.push(e) }
   box.replaceChildren(...cards)
 }
+// Click a monster (card, or line of the text list) for its sheet and lore: Go sends them as panes sheet<i>/lore<i>,
+// i = the line in the visible list. The open monster is followed by name while the list reorders.
+const info = {}, detail = { open: false, i: 0, name: "", tab: "sheet" }
+const visibleNames = () => visibleHTML.split("\n").map(l => { const d = document.createElement("div"); d.innerHTML = l
+  return (d.textContent.match(/^ . \[.{5}\] (.+)$/u) || [])[1] })
+function openDetail(i) { Object.assign(detail, { open: true, i, name: visibleNames()[i] || "", tab: "sheet" }); drawDetail() }
+function drawDetail() {
+  const body = document.querySelector("#t-visible .body")
+  let box = body.querySelector(".detail")
+  if (!detail.open) return box?.remove()
+  const names = visibleNames()
+  if (names[detail.i] !== detail.name && names.includes(detail.name)) detail.i = names.indexOf(detail.name) // else: gone, keep the last sheet
+  if (!box) {
+    box = document.createElement("div"); box.className = "detail"
+    box.innerHTML = `<div class="head"><a href="#" class="back">‹ back</a><span class="who"></span><span class="tabs">
+      <button data-t="sheet">Stats</button><button data-t="lore">Lore</button></span></div><div class="page"><div class="plate"><img alt=""></div><pre></pre></div>`
+    box.querySelector(".back").onclick = e => { e.preventDefault(); detail.open = false; drawDetail() }
+    for (const b of box.querySelectorAll(".tabs button")) b.onclick = () => { detail.tab = b.dataset.t; b.blur(); drawDetail() }
+    const img = box.querySelector("img"); img.onerror = () => img.parentNode.hidden = true
+    body.append(box)
+  }
+  box.style.setProperty("--face", family(fonts.face))
+  box.querySelector(".who").textContent = detail.name
+  const sheet = info["sheet" + detail.i] || "", lore = info["lore" + detail.i] || ""
+  if (detail.tab === "lore" && !lore) detail.tab = "sheet"
+  for (const b of box.querySelectorAll(".tabs button")) { b.classList.toggle("on", b.dataset.t === detail.tab); b.hidden = b.dataset.t === "lore" && !lore }
+  const pre = box.querySelector("pre")
+  pre.innerHTML = (detail.tab === "lore" ? lore : sheet) || "You can't make out what it is."
+  for (const sp of pre.querySelectorAll("span")) sp.style.background = "" // the theme's background would box every span
+  const img = box.querySelector("img"), src = "monsters/" + detail.name.toLowerCase().replace(/ /g, "_") + ".png"
+  if (!img.src.endsWith(src)) { img.parentNode.hidden = false; img.src = src }
+}
+// text list: the clicked row is the line
+document.querySelector("#t-visible pre").addEventListener("click", e => {
+  const pre = e.currentTarget, cell = pre.querySelector(".cell"); if (!cell) return
+  const i = Math.floor((e.clientY - cell.getBoundingClientRect().top) / cell.offsetHeight)
+  if (i >= 0 && i < visibleNames().length) openDetail(i)
+})
 function setImages(on) {
   images.on = on; kv("readwrite", s => s.put(on, "images"))
   if (on) drawCards(); else rvipPane("visible", visibleHTML, "")
+  drawDetail()
 }
 wmReady.then(async () => {
   const l = document.createElement("label"), cb = document.createElement("input")
