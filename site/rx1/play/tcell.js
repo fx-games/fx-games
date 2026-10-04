@@ -275,11 +275,10 @@ document.addEventListener("paste", (e) => {
   onPaste(false);
 });
 
-term.addEventListener("wheel", (e) => {
+term.parentNode.addEventListener("wheel", (e) => {
   if (typeof rxWheel !== "function" || e.deltaY === 0) return;
   e.preventDefault();
-  // cell from the terminal's box: e.offsetX is relative to the <span> under the mouse, so menus never got the wheel
-  const r = term.getBoundingClientRect();
-  rxWheel(Math.min(width - 1, Math.max(0, ((e.clientX - r.left) / r.width * width) | 0)),
-          Math.min(height - 1, Math.max(0, ((e.clientY - r.top) / r.height * height) | 0)), e.deltaY);
+  // the page's cellAt: map cells, or the overlay's while a modal is up (e.offsetX is relative to the <span> under the mouse)
+  const [x, y] = cellAt(e);
+  rxWheel(x, y, e.deltaY);
 }, { passive: false });
