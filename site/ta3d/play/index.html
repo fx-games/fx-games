@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TA3D · Play</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px monospace; overflow: hidden; }
+  #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; }
+  #back:hover { color: #fff; }
+  #hint { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; text-align: center; background: rgba(0,0,0,.6); cursor: pointer; z-index: 5; }
+  #hint small { color: #777; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<a id="back" href="../">← back</a>
+<canvas id="canvas"></canvas>
+<div id="hint">Loading…</div>
+<script src="../../progress.js" data-size="22224003"></script>
+<script src="wasm_exec.js"></script>
+<script>
+  // The game writes its engine atlases, options and career to disk at start; on
+  // js os goes through Node's fs API, so this is a small one in memory (gone on reload).
+  const files = new Map(), dirs = new Set(["."]), fds = new Map();
+  let nextFd = 100;
+  const err = code => Object.assign(new Error(code), { code });
+  const norm = p => { const out = []; for (const s of p.split("/")) { if (s === "..") out.pop(); else if (s && s !== ".") out.push(s); } return out.join("/") || "."; };
+  const parent = p => { const i = p.lastIndexOf("/"); return i < 0 ? "." : p.slice(0, i); };
+  const statOf = p => {
+    const f = files.get(p), d = dirs.has(p);
+    if (!f && !d) return null;
+    const size = f ? f.length : 0;
+    return { dev: 0, ino: 0, mode: d ? 0o40755 : 0o100644, nlink: 1, uid: 0, gid: 0, rdev: 0, size, blksize: 4096,
+      blocks: Math.ceil(size / 512), atimeMs: 0, mtimeMs: 0, ctimeMs: 0, isDirectory: () => d };
+  };
+  const C = { O_WRONLY: 1, O_RDWR: 2, O_CREAT: 64, O_EXCL: 128, O_TRUNC: 512, O_APPEND: 1024, O_DIRECTORY: 65536 };
+  const fs = globalThis.fs, writeOut = fs.write.bind(fs);
+  Object.assign(fs.constants, C);
+  Object.assign(fs, {
+    open(p, flags, mode, cb) {
+      p = norm(p);
+      if (!statOf(p)) {
+        if (!(flags & C.O_CREAT) || !dirs.has(parent(p))) return cb(err("ENOENT"));
+        files.set(p, new Uint8Array(0));
+      } else if (flags & C.O_EXCL) return cb(err("EEXIST"));
+      if (flags & C.O_TRUNC && files.has(p)) files.set(p, new Uint8Array(0));
+      fds.set(++nextFd, { p, pos: 0, append: flags & C.O_APPEND }); cb(null, nextFd);
+    },
+    close(fd, cb) { fds.delete(fd); cb(null); },
+    fsync(fd, cb) { cb(null); },
+    fstat(fd, cb) { const f = fds.get(fd); f ? cb(null, statOf(f.p)) : cb(err("EBADF")); },
+    stat(p, cb) { const s = statOf(norm(p)); s ? cb(null, s) : cb(err("ENOENT")); },
+    lstat(p, cb) { this.stat(p, cb); },
+    mkdir(p, mode, cb) { p = norm(p); if (statOf(p)) return cb(err("EEXIST")); if (!dirs.has(parent(p))) return cb(err("ENOENT")); dirs.add(p); cb(null); },
+    readdir(p, cb) {
+      p = norm(p); if (!dirs.has(p)) return cb(err("ENOENT"));
+      cb(null, [...dirs, ...files.keys()].filter(q => q !== "." && parent(q) === p).map(q => q.slice(q.lastIndexOf("/") + 1)));
+    },
+    unlink(p, cb) { files.delete(norm(p)) ? cb(null) : cb(err("ENOENT")); },
+    rmdir(p, cb) { dirs.delete(norm(p)) ? cb(null) : cb(err("ENOENT")); },
+    rename(a, b, cb) { a = norm(a); b = norm(b); if (!files.has(a)) return cb(err("ENOENT")); files.set(b, files.get(a)); files.delete(a); cb(null); },
+    ftruncate(fd, len, cb) { const f = fds.get(fd); if (!f) return cb(err("EBADF")); const d = new Uint8Array(len); d.set(files.get(f.p).subarray(0, len)); files.set(f.p, d); cb(null); },
+    read(fd, buf, off, len, pos, cb) {
+      const f = fds.get(fd), data = f && files.get(f.p);
+      if (!data) return cb(err(f ? "EISDIR" : "EBADF"));
+      const at = pos ?? f.pos, n = Math.max(0, Math.min(len, data.length - at));
+      buf.set(data.subarray(at, at + n), off);
+      if (pos == null) f.pos += n;
+      cb(null, n);
+    },
+    write(fd, buf, off, len, pos, cb) {
+      const f = fds.get(fd);
+      if (!f) return writeOut(fd, buf, off, len, pos, cb); // stdout, stderr
+      let data = files.get(f.p);
+      const at = f.append ? data.length : pos ?? f.pos;
+      if (at + len > data.length) { const d = new Uint8Array(Math.max(at + len, data.length * 2)); d.set(data); data = d.subarray(0, at + len); }
+      data.set(buf.subarray(off, off + len), at);
+      files.set(f.p, data);
+      if (pos == null) f.pos = at + len;
+      cb(null, len);
+    },
+  });
+</script>
+<script>
+  const hint = document.getElementById("hint");
+  const go = new Go();
+  WebAssembly.instantiateStreaming(progressFetch("ta3d.wasm"), go.importObject)
+    .then(r => {
+      globalThis.__goMem = r.instance.exports.mem; // gl_js.go views Go memory through this
+      hint.innerHTML = "Click to start<small>WASD walk · mouse look · E act · left click fire · F1 help · Esc pause</small>";
+      hint.onclick = () => {
+        hint.onclick = null;
+        hint.textContent = "Starting…";
+        globalThis.__firstFrame = () => hint.remove(); // called by Go after its first frame
+        requestAnimationFrame(() => setTimeout(() => {
+          go.run(r.instance);
+          // oto waits for a user gesture after it starts; this click was one, so nudge it.
+          const nudge = setInterval(() => document.dispatchEvent(new Event("touchend")), 250);
+          setTimeout(() => clearInterval(nudge), 30000);
+        }, 0));
+      };
+    })
+    .catch(e => { hint.textContent = "Failed to load: " + e; });
+</script>
+<script src="../../keys.js" data-keys="W A S D — walk|Mouse — look|Shift — run|CapsLock — sneak on/off|Left click / Space — use equipped item|Right click — scope / flashlight|E — act (hold on a door: keyhole)|V — use item on target|R — assassinate|F — dive|Tab — tooltip|Q — inventory|X — drop|C — holster|M — map: corner / full / hidden|F1 — help|Esc — pause"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&display=swap" rel="stylesheet"><title>ProcGalaxy · Felix' Games</title><meta name="description" content="ProcGalaxy is my attempt at a small Elite in the terminal: an infinite, seeded 2D universe of star systems you fly through, scan and refuel in, with an LLM meant to narrate what you find."><meta property="og:type" content="website"><meta property="og:site_name" content="Felix' Games"><meta property="og:title" content="ProcGalaxy · Felix&#x27; Games"><meta property="og:description" content="ProcGalaxy is my attempt at a small Elite in the terminal: an infinite, seeded 2D universe of star systems you fly through, scan and refuel in, with an LLM meant to narrate what you find."><meta property="og:url" content="https://ruzzoli.de/games/proc-galaxy/"><meta property="og:image" content="https://ruzzoli.de/games/proc-galaxy/img/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="stylesheet" href="../style.css"></head><body><main>
+<p><a href="../">← all games</a></p>
+<h1>ProcGalaxy</h1><p class="meta">Started July 2026 · Go, Bubbletea · terminal space exploration with LLM narration</p>
+<p class="done">Completion <span>▰▰▱▱▱▱▱▱▱▱</span> 20% · a concept: the universe works, the story doesn't yet</p>
+<div class="btns" style="max-width:420px"><a class="btn play" href="play/">▶ Play in browser</a></div>
+<p>ProcGalaxy is my attempt at a small Elite in the terminal: an infinite, seeded 2D universe of star systems you fly through, scan and refuel in, with an LLM meant to narrate what you find.</p>
+<p>The universe is generated on demand from a seed, so the same coordinates always give the same system, the same star and the same pronounceable names. Every system has two layers: the overworld map where one cell is a whole system, and a local map with the primary star in the middle, planets on widening orbits, moons next to them and sometimes an asteroid belt at the rim. Space toggles between the two.</p>
+<p>Fuel is the tension. Long voyages between systems cost a lot more than moving around inside one, and only some bodies hold deuterium a ramscoop can collect: hot stars, gas giants, ice worlds, icy belts. Not every system is a refuelling stop, so you can actually run dry and drift.</p>
+<p>The LLM part is the reason I started it: scan a body, hand the readings to one of your officers, and get a report back that works the hidden narrative hints into a story, or beam down on an away mission written as a little text adventure. The browser version has no LLM (I'm not shipping API keys), so here you get the deterministic side: flying, scanning, the scan reports and refuelling.</p>
+<p>Controls: M for the menu, Enter for a command, Space to enter or leave a system, Q to quit.</p>
+<h2>Features</h2><ul><li>Infinite seeded 2D universe, generated on demand and identical for the same seed</li><li>Two map layers per system, overworld and system map, with the ship tracked on both</li><li>Attribute banks of real star classes, planet types and star names, remixed per system</li><li>Deterministic scans with a progress bar and a key/value scan report</li><li>Fuel economy: costly inter-system jumps, ramscoop refuelling at real fuel sources, drifting when empty</li><li>Analysis queue and report inbox: LLM officers write up scanned bodies in the background (native build only)</li><li>Crew with presets and away missions played in free text (native build only)</li><li>Save and load of the full session (native build only)</li></ul>
+<h2>Under the hood</h2><p class="meta">≈ 18,600 lines of Go · 39 commits</p>
+<p>Whether a star can refuel you is decided by its type alone, and the comment explains why it is so stingy (<code>internal/procgen/fuelsource.go</code>):</p><pre><code>// This is deliberately narrow - three of the eleven types. Every star being
+// scoopable made every system a refuelling stop, which left fuel scarce nowhere
+// and the drift rules unused.
+func IsFuelSourceStar(s *Star) bool {
+	...
+	switch s.StellarType {
+	case "blue giant", "blue-white star", "white star":
+		return true
+	}
+	return false
+}</code></pre>
+<p>Scans never touch the LLM, so the same body always reads the same way. Only the analysis afterwards gets to be creative.</p>
+<h2>Screenshots</h2><div class="shots"><img src="img/shot1.png" alt="" onerror="this.remove()"><img src="img/shot2.png" alt="" onerror="this.remove()"></div>
+<h2>Latest updates</h2><ul class="log"><li><b>2026-08-04</b> Away mission scenes stream in, debug mode</li><li><b>2026-07-29</b> Away missions played in free text, replacing science officer reports</li><li><b>2026-07-29</b> Free-form commands change the ship by tool call</li><li><b>2026-07-29</b> Crew presets</li><li><b>2026-07-28</b> First commit</li></ul>
+</main></body></html>

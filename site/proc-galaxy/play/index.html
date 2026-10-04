@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProcGalaxy · Play</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px monospace; overflow: hidden; }
+  #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; }
+  #back:hover { color: #fff; }
+  #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #term { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+</style>
+</head>
+<body>
+<a id="back" href="../">← back</a>
+<div id="loading">Loading…</div>
+<div id="term"></div>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script src="../../progress.js" data-size="8171681"></script>
+<script src="wasm_exec.js"></script>
+<script>
+  // Fixed 120x36 terminal; the game sees it as its window size.
+  window.term = new Terminal({ cols: 120, rows: 36, fontSize: 14, theme: { background: "#000" } });
+  const go = new Go();
+  WebAssembly.instantiateStreaming(progressFetch("pg.wasm"), go.importObject)
+    .then(r => {
+      document.getElementById("loading").remove();
+      term.open(document.getElementById("term"));
+      term.focus();
+      go.run(r.instance);
+    })
+    .catch(e => { document.getElementById("loading").textContent = "Failed to load: " + e; });
+</script>
+</body>
+</html>
