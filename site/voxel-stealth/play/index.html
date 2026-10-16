@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoxelStealth · Play</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #aaa; font: 14px monospace; overflow: hidden; }
+  #back { position: fixed; top: 8px; left: 12px; color: #888; text-decoration: none; z-index: 10; }
+  #back:hover { color: #fff; }
+  #hint { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; text-align: center; background: rgba(0,0,0,.6); cursor: pointer; z-index: 5; }
+  #hint small { color: #777; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<a id="back" href="../">← back</a>
+<canvas id="canvas"></canvas>
+<div id="hint">Loading…</div>
+<script src="../../progress.js" data-size="18325636"></script>
+<script src="wasm_exec.js"></script>
+<script>
+  // os on js/wasm reads files through Node's fs API. This is a small one over
+  // the assets embedded in the wasm: web_js.go hands __mountFS a flat table of
+  // [path, address in wasm memory, length] and reads become typed-array copies.
+  // Those are read-only; files the game creates (quicksaves) live in memory
+  // until the page reloads.
+  const mounted = new Map(), files = new Map(), dirs = new Set(["."]), fds = new Map();
+  let nextFd = 100;
+  const err = code => Object.assign(new Error(code), { code });
+  const norm = p => { const out = []; for (const s of p.split("/")) { if (s === "..") out.pop(); else if (s && s !== ".") out.push(s); } return out.join("/") || "."; };
+  const parent = p => { const i = p.lastIndexOf("/"); return i < 0 ? "." : p.slice(0, i); };
+  globalThis.__mountFS = t => {
+    for (let i = 0; i < t.length; i += 3) {
+      let name = t[i];
+      if (name.endsWith("/")) dirs.add(name.slice(0, -1)); else mounted.set(name, [t[i + 1], t[i + 2]]);
+    }
+  };
+  const sizeOf = p => { const m = mounted.get(p); if (m) return m[1]; const f = files.get(p); return f ? f.length : -1; };
+  const statOf = p => {
+    const size = sizeOf(p), d = dirs.has(p);
+    if (size < 0 && !d) return null;
+    return { dev: 0, ino: 0, mode: d ? 0o40755 : 0o100644, nlink: 1, uid: 0, gid: 0, rdev: 0, size: d ? 0 : size, blksize: 4096,
+      blocks: Math.ceil(Math.max(size, 0) / 512), atimeMs: 0, mtimeMs: 0, ctimeMs: 0, isDirectory: () => d };
+  };
+  const C = { O_WRONLY: 1, O_RDWR: 2, O_CREAT: 64, O_EXCL: 128, O_TRUNC: 512, O_APPEND: 1024, O_DIRECTORY: 65536 };
+  const fs = globalThis.fs, writeOut = fs.write.bind(fs);
+  Object.assign(fs.constants, C);
+  Object.assign(fs, {
+    open(p, flags, mode, cb) {
+      p = norm(p);
+      const writing = flags & (C.O_WRONLY | C.O_RDWR | C.O_CREAT | C.O_TRUNC | C.O_APPEND);
+      if (mounted.has(p) && writing) return cb(err("EROFS"));
+      if (!statOf(p)) {
+        if (!(flags & C.O_CREAT) || !dirs.has(parent(p))) return cb(err("ENOENT"));
+        files.set(p, new Uint8Array(0));
+      } else if (flags & C.O_EXCL) return cb(err("EEXIST"));
+      if (flags & C.O_TRUNC && files.has(p)) files.set(p, new Uint8Array(0));
+      fds.set(++nextFd, { p, pos: 0, append: flags & C.O_APPEND }); cb(null, nextFd);
+    },
+    close(fd, cb) { fds.delete(fd); cb(null); },
+    fsync(fd, cb) { cb(null); },
+    fstat(fd, cb) { const f = fds.get(fd); f ? cb(null, statOf(f.p)) : cb(err("EBADF")); },
+    stat(p, cb) { const s = statOf(norm(p)); s ? cb(null, s) : cb(err("ENOENT")); },
+    lstat(p, cb) { this.stat(p, cb); },
+    mkdir(p, mode, cb) { p = norm(p); if (statOf(p)) return cb(err("EEXIST")); if (!dirs.has(parent(p))) return cb(err("ENOENT")); dirs.add(p); cb(null); },
+    readdir(p, cb) {
+      p = norm(p); if (!dirs.has(p)) return cb(err("ENOENT"));
+      cb(null, [...dirs, ...mounted.keys(), ...files.keys()].filter(q => q !== "." && parent(q) === p).map(q => q.slice(q.lastIndexOf("/") + 1)));
+    },
+    unlink(p, cb) { files.delete(norm(p)) ? cb(null) : cb(err(mounted.has(norm(p)) ? "EROFS" : "ENOENT")); },
+    rmdir(p, cb) { dirs.delete(norm(p)) ? cb(null) : cb(err("ENOENT")); },
+    rename(a, b, cb) { a = norm(a); b = norm(b); if (!files.has(a)) return cb(err("ENOENT")); files.set(b, files.get(a)); files.delete(a); cb(null); },
+    ftruncate(fd, len, cb) { const f = fds.get(fd); if (!f || !files.has(f.p)) return cb(err("EBADF")); const d = new Uint8Array(len); d.set(files.get(f.p).subarray(0, len)); files.set(f.p, d); cb(null); },
+    read(fd, buf, off, len, pos, cb) {
+      const f = fds.get(fd);
+      if (!f) return cb(err("EBADF"));
+      const at = pos ?? f.pos, m = mounted.get(f.p), data = files.get(f.p);
+      if (!m && !data) return cb(err("EISDIR"));
+      const n = Math.max(0, Math.min(len, (m ? m[1] : data.length) - at));
+      buf.set(m ? new Uint8Array(__goMem.buffer, m[0] + at, n) : data.subarray(at, at + n), off);
+      if (pos == null) f.pos += n;
+      cb(null, n);
+    },
+    write(fd, buf, off, len, pos, cb) {
+      const f = fds.get(fd);
+      if (!f) return writeOut(fd, buf, off, len, pos, cb); // stdout / stderr
+      let data = files.get(f.p);
+      if (!data) return cb(err("EROFS"));
+      const at = f.append ? data.length : pos ?? f.pos;
+      if (at + len > data.length) { const d = new Uint8Array(at + len); d.set(data); files.set(f.p, data = d); }
+      data.set(buf.subarray(off, off + len), at);
+      if (pos == null) f.pos = at + len;
+      cb(null, len);
+    },
+  });
+
+  const hint = document.getElementById("hint");
+  const canvas = document.getElementById("canvas");
+  const go = new Go();
+  WebAssembly.instantiateStreaming(progressFetch("voxelstealth.wasm"), go.importObject)
+    .then(r => {
+      globalThis.__goMem = r.instance.exports.mem; // gl_js.go views Go memory through this
+      hint.innerHTML = "Click to start<small>WASD move · mouse look · Shift run · Ctrl sneak · left click fires · scroll cycles arrows · E use · Esc releases the mouse</small>";
+      hint.onclick = () => {
+        hint.onclick = null;
+        hint.textContent = "Lighting the manor…";
+        globalThis.__firstFrame = () => hint.remove(); // called by Go after its first frame
+        const p = canvas.requestPointerLock();
+        if (p && p.catch) p.catch(() => {});
+        // Loading blocks the page, so let the message paint first.
+        requestAnimationFrame(() => setTimeout(() => runGo(r.instance), 0));
+      };
+      const runGo = inst => {
+        go.run(inst);
+        // oto (the audio backend) waits for a touchend/keyup/mouseup after it starts
+        // before resuming its AudioContext. This click already counts as the user
+        // gesture, so nudge it with synthetic ones until it has had its chance.
+        const nudge = setInterval(() => document.dispatchEvent(new Event("touchend")), 250);
+        setTimeout(() => clearInterval(nudge), 30000);
+      };
+    })
+    .catch(e => { hint.textContent = "Failed to load: " + e; });
+</script>
+<script src="../../keys.js" data-keys="Click — capture mouse|Mouse — look|W A S D — move|Space — jump|Shift — run|Ctrl / C — sneak|Left click — fire crossbow / swing|Scroll — cycle arrows and tools|1-9 — weapon slots|E / F — use, pick locks, carry bodies|X — next arrow type|G — throw torch / drop a carried body|Tab — objectives|F5 — quicksave|F9 — quickload|R — restart after the mission ends|F1 — help|Esc — release mouse"></script>
+</body>
+</html>
